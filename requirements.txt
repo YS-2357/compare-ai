@@ -1,5 +1,9 @@
 # Minimal API Testing Requirements
 
+# Build essentials first
+wheel==0.43.0
+numpy==1.26.4  # for kiwipiepy build
+
 # Core LangGraph and LangChain
 langgraph==1.0.4
 langchain-core==1.1.0
@@ -31,7 +35,6 @@ streamlit==1.51.0  # local UI; exclude from production if not needed
 PyYAML==6.0.1
 
 # Additional dependencies
-numpy==1.26.4  # for kiwipiepy build
 tokenizers==0.20.3
 # langchain-upstage 0.7.5 requires pypdf<5.0.0
 pypdf==4.3.1
