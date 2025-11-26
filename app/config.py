@@ -22,7 +22,7 @@ class Settings:
     streamlit_headless: bool = True
 
     env: Literal["local", "test", "prod"] = "local"
-    langsmith_project: str = "API-LangGraph-Test"
+    langsmith_project: str = "Compare-AI-BE"
     supabase_url: str | None = None
     supabase_jwks_url: str | None = None
     supabase_aud: str = "authenticated"
@@ -45,7 +45,7 @@ class Settings:
             streamlit_port=int(os.getenv("STREAMLIT_SERVER_PORT", "8501")),
             streamlit_headless=os.getenv("STREAMLIT_SERVER_HEADLESS", "true").lower() == "true",
             env=os.getenv("APP_ENV", "local"),  # type: ignore[assignment]
-            langsmith_project=os.getenv("LANGSMITH_PROJECT", "API-LangGraph-Test"),
+            langsmith_project=os.getenv("LANGSMITH_PROJECT", "Compare-AI-BE"),
             supabase_url=os.getenv("SUPABASE_URL"),
             supabase_jwks_url=os.getenv("SUPABASE_JWKS_URL"),
             supabase_aud=os.getenv("SUPABASE_JWT_AUD", "authenticated"),

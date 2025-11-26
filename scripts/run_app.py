@@ -65,11 +65,8 @@ def run_streamlit(port: int, env: dict[str, str]) -> None:
 
 
 def main() -> None:
-    """FastAPI(Uvicorn)와 Streamlit(로컬용)을 부트스트랩한다.
+    """FastAPI(Uvicorn)와 Streamlit(로컬용)을 부트스트랩한다."""
 
-    Returns:
-        None
-    """
     settings = get_settings()
     host = os.getenv("FASTAPI_HOST", settings.fastapi_host)
     fastapi_port = int(os.getenv("PORT") or settings.fastapi_port)

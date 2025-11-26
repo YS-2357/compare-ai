@@ -6,14 +6,14 @@ import asyncio
 import time
 from typing import Annotated, Any, AsyncIterator, TypedDict, cast
 import json
+import os
 
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.runnables import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI
-from langchain_teddynote import logging
-from langchain_teddynote.models import ChatPerplexity
+from langchain_perplexity import ChatPerplexity
 from langchain_upstage import ChatUpstage
 try:
     from langchain_mistralai.chat_models import ChatMistralAI
@@ -44,8 +44,10 @@ except ImportError:
 # 환경변수 로드
 load_dotenv()
 
-# LangSmith 추적 설정 (노트북 파일 기준)
-logging.langsmith("API-LangGraph-Test")
+# LangSmith 설정 (환경변수 기반)
+os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "true")
+os.environ["LANGCHAIN_ENDPOINT"] = os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
+os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY", "")
 
 logger = get_logger(__name__)
 DEFAULT_MAX_TURNS = 3
@@ -451,16 +453,7 @@ async def call_perplexity(state: GraphState) -> GraphState:
     prompt = inputs.get("Perplexity") or question
     logger.debug("Perplexity 호출 시작")
     try:
-        llm = ChatPerplexity(
-            model="sonar",
-            temperature=0.2,
-            top_p=0.9,
-            search_domain_filter=["perplexity.ai"],
-            return_images=False,
-            return_related_questions=True,
-            top_k=0,
-            stream=False,
-        )
+        llm = ChatPerplexity(temperature=0, model="sonar")
         response = await _ainvoke(llm, prompt)
         content = response.content if hasattr(response, "content") else str(response)
         status = build_status_from_response(response)

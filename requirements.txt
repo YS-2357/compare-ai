@@ -14,7 +14,6 @@ langchain-google-genai==3.2.0
 langchain-anthropic==1.2.0
 langchain-upstage==0.7.5
 langchain-perplexity==1.1.0
-langchain-teddynote==0.5.4
 langchain-mistralai==1.1.0
 langchain-groq==1.1.0
 langchain-cohere==0.5.0
