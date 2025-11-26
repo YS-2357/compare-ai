@@ -34,6 +34,8 @@ from langgraph.graph.message import add_messages
 from langgraph.types import Send
 
 from app.logger import get_logger
+from app.prompts.summarize import SUMMARY_PROMPT
+from app.parsers.text import SUMMARY_PARSER
 
 # LangSmith UUID v7 지원
 try:
@@ -48,6 +50,7 @@ load_dotenv()
 os.environ["LANGCHAIN_TRACING_V2"] = os.getenv("LANGCHAIN_TRACING_V2", "true")
 os.environ["LANGCHAIN_ENDPOINT"] = os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
 os.environ["LANGCHAIN_API_KEY"] = os.getenv("LANGCHAIN_API_KEY", "")
+os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGCHAIN_PROJECT", "Compare-AI-BE")
 
 logger = get_logger(__name__)
 DEFAULT_MAX_TURNS = 3
@@ -63,14 +66,9 @@ def _preview(text: str, limit: int = 80) -> str:
 async def _summarize_content(llm: Any, content: str, label: str) -> str:
     """모델 응답을 짧게 요약한다."""
 
-    summary_prompt = (
-        "다음 답변을 핵심만 2문장 이하(400자 이내)로 매우 간결하게 요약하세요.\n\n"
-        f"답변:\n{content}\n"
-    )
     try:
-        response = await _ainvoke(llm, summary_prompt)
-        text = response.content if hasattr(response, "content") else str(response)
-        return str(text)
+        chain = SUMMARY_PROMPT | llm | SUMMARY_PARSER
+        return await chain.ainvoke({"answer": content})
     except Exception as exc:
         logger.warning("%s 요약 실패: %s", label, exc)
         return content[:200]
@@ -452,8 +450,16 @@ async def call_perplexity(state: GraphState) -> GraphState:
     question = state["question"]
     prompt = inputs.get("Perplexity") or question
     logger.debug("Perplexity 호출 시작")
+    pplx_api_key = os.getenv("PPLX_API_KEY")
+    if not pplx_api_key:
+        error = RuntimeError("PPLX_API_KEY is missing")
+        status = build_status_from_error(error)
+        return GraphState(
+            perplexity_status=status,
+            messages=[format_response_message("Perplexity 오류", error)],
+        )
     try:
-        llm = ChatPerplexity(temperature=0, model="sonar")
+        llm = ChatPerplexity(temperature=0, model="sonar", pplx_api_key=pplx_api_key)
         response = await _ainvoke(llm, prompt)
         content = response.content if hasattr(response, "content") else str(response)
         status = build_status_from_response(response)
