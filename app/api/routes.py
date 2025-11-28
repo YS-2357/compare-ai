@@ -68,6 +68,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
         answers = {}
         api_status = {}
         durations_ms: dict[str, int] = {}
+        sources: dict[str, str | None] = {}
         messages = [{"role": "user", "content": question}]
         seen_messages = {("user", question)}
         completion_order: list[str] = []
@@ -95,6 +96,8 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                         status = event.get("status")
                         if status:
                             api_status[model] = status
+                        if event.get("source") is not None:
+                            sources[model] = event.get("source")
                         elapsed_ms = event.get("elapsed_ms")
                         if elapsed_ms is not None:
                             durations_ms[model] = int(elapsed_ms)
@@ -144,6 +147,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                     "answers": answers,
                     "api_status": api_status,
                     "durations_ms": durations_ms,
+                    "sources": sources,
                     "messages": messages,
                     "order": completion_order,
                     "primary_model": primary_model,

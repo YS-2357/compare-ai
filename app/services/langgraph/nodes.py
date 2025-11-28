@@ -7,9 +7,13 @@ import json
 import os
 from typing import Annotated, Any, TypedDict, cast
 
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph.message import add_messages
 from langgraph.types import Send
+from pydantic import BaseModel, Field
 
+from app.config import get_settings
 from app.logger import get_logger
 
 from .llm_registry import (
@@ -58,6 +62,7 @@ class GraphState(TypedDict, total=False):
 
     raw_responses: Annotated[dict[str, str] | None, merge_dicts]
     self_summaries: Annotated[dict[str, str] | None, merge_dicts]
+    raw_sources: Annotated[dict[str, str | None] | None, merge_dicts]
     openai_summary: Annotated[str | None, "OpenAI 자기 요약"]
     gemini_summary: Annotated[str | None, "Gemini 자기 요약"]
     anthropic_summary: Annotated[str | None, "Anthropic 자기 요약"]
@@ -152,6 +157,68 @@ def _simplify_error_message(error: Any) -> str:
     return str(error).strip().splitlines()[0][:200]
 
 
+class Answer(BaseModel):
+    """LCEL 체인 출력 스키마."""
+
+    content: str = Field(..., description="짧게 요약된 답변")
+    source: str | None = Field(default=None, description="출처 URL 또는 참고 정보(옵션)")
+
+
+def _build_prompt() -> ChatPromptTemplate:
+    parser = PydanticOutputParser(pydantic_object=Answer)
+    instructions = parser.get_format_instructions()
+    system = (
+        "사용자 질문에 대해 가능한 한 짧게 핵심만 답변하세요. "
+        "5문장 이하, 400자 이하로 요약하며 모르면 모른다고 답변합니다.\n"
+        "{format_instructions}"
+    )
+    return ChatPromptTemplate.from_messages(
+        [
+            ("system", system),
+            ("user", "{question}"),
+        ]
+    ).partial(format_instructions=instructions)
+
+
+def _extract_source(extras: dict[str, Any] | None) -> str | None:
+    """추가 메타에서 출처 URL을 추출한다."""
+
+    if not extras:
+        return None
+    citations = extras.get("citations")
+    if isinstance(citations, list) and citations:
+        first = citations[0]
+        if isinstance(first, str):
+            return first
+    search_results = extras.get("search_results")
+    if isinstance(search_results, list) and search_results:
+        item = search_results[0]
+        if isinstance(item, dict):
+            url = item.get("url")
+            if url:
+                return str(url)
+    return None
+
+
+async def _invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, str | None, dict[str, Any]]:
+    """LCEL 체인을 시도하고, 실패 시 원본 응답으로 폴백한다."""
+
+    parser = PydanticOutputParser(pydantic_object=Answer)
+    prompt = _build_prompt()
+    chain = prompt | llm | parser
+    try:
+        parsed: Answer = await chain.ainvoke({"question": prompt_input})
+        content = parsed.content
+        source = parsed.source or _extract_source(getattr(parsed, "model_extra", None))
+        status = {"status": 200, "detail": "success"}
+        return content, source, status
+    except Exception:
+        response = await _ainvoke(llm, prompt_input)
+        content = response.content if hasattr(response, "content") else str(response)
+        status = build_status_from_response(response)
+        return content, None, status
+
+
 def build_status_from_response(
     response: Any, default_status: int = 200, detail: str = "success"
 ) -> dict[str, Any]:
@@ -227,22 +294,22 @@ async def call_openai(state: GraphState) -> GraphState:
 
     inputs = state.get("current_inputs") or {}
     question = state["question"]
-    prompt = inputs.get("OpenAI") or question
+    prompt_input = inputs.get("OpenAI") or question
     logger.debug("OpenAI 호출 시작")
     try:
-        llm = ChatOpenAI(model="gpt-5-nano")
-        response = await _ainvoke(llm, prompt)
-        content = response.content if hasattr(response, "content") else str(response)
-        status = build_status_from_response(response)
+        settings = get_settings()
+        llm = ChatOpenAI(model=settings.model_openai)
+        content, source, status = await _invoke_parsed(llm, prompt_input, "OpenAI")
         summary = await _summarize_content(llm, content, "OpenAI")
-        logger.info("OpenAI 응답 완료: %s", status.get("detail"))
+        logger.info("OpenAI 응답 완료")
         return GraphState(
             openai_answer=content,
             openai_status=status,
             openai_summary=summary,
             raw_responses={"OpenAI": content},
+            raw_sources={"OpenAI": source},
             self_summaries={"OpenAI": summary},
-            messages=[format_response_message("OpenAI", response)],
+            messages=[format_response_message("OpenAI", content)],
         )
     except Exception as exc:
         status = build_status_from_error(exc)
@@ -258,22 +325,22 @@ async def call_gemini(state: GraphState) -> GraphState:
 
     inputs = state.get("current_inputs") or {}
     question = state["question"]
-    prompt = inputs.get("Gemini") or question
+    prompt_input = inputs.get("Gemini") or question
     logger.debug("Gemini 호출 시작")
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash-lite", temperature=0)
-        response = await _ainvoke(llm, prompt)
-        content = response.content if hasattr(response, "content") else str(response)
-        status = build_status_from_response(response)
+        settings = get_settings()
+        llm = ChatGoogleGenerativeAI(model=settings.model_gemini, temperature=0)
+        content, source, status = await _invoke_parsed(llm, prompt_input, "Gemini")
         summary = await _summarize_content(llm, content, "Gemini")
-        logger.info("Gemini 응답 완료: %s", status.get("detail"))
+        logger.info("Gemini 응답 완료")
         return GraphState(
             gemini_answer=content,
             gemini_status=status,
             gemini_summary=summary,
             raw_responses={"Gemini": content},
+            raw_sources={"Gemini": source},
             self_summaries={"Gemini": summary},
-            messages=[format_response_message("Gemini", response)],
+            messages=[format_response_message("Gemini", content)],
         )
     except Exception as exc:
         status = build_status_from_error(exc)
@@ -289,22 +356,22 @@ async def call_anthropic(state: GraphState) -> GraphState:
 
     inputs = state.get("current_inputs") or {}
     question = state["question"]
-    prompt = inputs.get("Anthropic") or question
+    prompt_input = inputs.get("Anthropic") or question
     logger.debug("Anthropic 호출 시작")
     try:
-        llm = ChatAnthropic(model="claude-haiku-4-5-20251001", temperature=0)
-        response = await _ainvoke(llm, prompt)
-        content = response.content if hasattr(response, "content") else str(response)
-        status = build_status_from_response(response)
+        settings = get_settings()
+        llm = ChatAnthropic(model=settings.model_anthropic, temperature=0)
+        content, source, status = await _invoke_parsed(llm, prompt_input, "Anthropic")
         summary = await _summarize_content(llm, content, "Anthropic")
-        logger.info("Anthropic 응답 완료: %s", status.get("detail"))
+        logger.info("Anthropic 응답 완료")
         return GraphState(
             anthropic_answer=content,
             anthropic_status=status,
             anthropic_summary=summary,
             raw_responses={"Anthropic": content},
+            raw_sources={"Anthropic": source},
             self_summaries={"Anthropic": summary},
-            messages=[format_response_message("Anthropic", response)],
+            messages=[format_response_message("Anthropic", content)],
         )
     except Exception as exc:
         status = build_status_from_error(exc)
@@ -320,22 +387,22 @@ async def call_upstage(state: GraphState) -> GraphState:
 
     inputs = state.get("current_inputs") or {}
     question = state["question"]
-    prompt = inputs.get("Upstage") or question
+    prompt_input = inputs.get("Upstage") or question
     logger.debug("Upstage 호출 시작")
     try:
-        llm = ChatUpstage(model="solar-mini")
-        response = await _ainvoke(llm, prompt)
-        content = response.content if hasattr(response, "content") else str(response)
-        status = build_status_from_response(response)
+        settings = get_settings()
+        llm = ChatUpstage(model=settings.model_upstage)
+        content, source, status = await _invoke_parsed(llm, prompt_input, "Upstage")
         summary = await _summarize_content(llm, content, "Upstage")
-        logger.info("Upstage 응답 완료: %s", status.get("detail"))
+        logger.info("Upstage 응답 완료")
         return GraphState(
             upstage_answer=content,
             upstage_status=status,
             upstage_summary=summary,
             raw_responses={"Upstage": content},
+            raw_sources={"Upstage": source},
             self_summaries={"Upstage": summary},
-            messages=[format_response_message("Upstage", response)],
+            messages=[format_response_message("Upstage", content)],
         )
     except Exception as exc:
         status = build_status_from_error(exc)
@@ -351,7 +418,7 @@ async def call_perplexity(state: GraphState) -> GraphState:
 
     inputs = state.get("current_inputs") or {}
     question = state["question"]
-    prompt = inputs.get("Perplexity") or question
+    prompt_input = inputs.get("Perplexity") or question
     logger.debug("Perplexity 호출 시작")
     pplx_api_key = os.getenv("PPLX_API_KEY")
     if not pplx_api_key:
@@ -362,19 +429,20 @@ async def call_perplexity(state: GraphState) -> GraphState:
             messages=[format_response_message("Perplexity 오류", error)],
         )
     try:
-        llm = ChatPerplexity(temperature=0, model="sonar", pplx_api_key=pplx_api_key)
-        response = await _ainvoke(llm, prompt)
-        content = response.content if hasattr(response, "content") else str(response)
-        status = build_status_from_response(response)
+        settings = get_settings()
+        llm = ChatPerplexity(temperature=0, model=settings.model_perplexity, pplx_api_key=pplx_api_key)
+        content, source, status = await _invoke_parsed(llm, prompt_input, "Perplexity")
         summary = await _summarize_content(llm, content, "Perplexity")
-        logger.info("Perplexity 응답 완료: %s", status.get("detail"))
+        logger.info("Perplexity 응답 완료")
+        msg = content if not source else f"{content} (src: {source})"
         return GraphState(
             perplexity_answer=content,
             perplexity_status=status,
             perplexity_summary=summary,
             raw_responses={"Perplexity": content},
+            raw_sources={"Perplexity": source},
             self_summaries={"Perplexity": summary},
-            messages=[format_response_message("Perplexity", response)],
+            messages=[format_response_message("Perplexity", msg)],
         )
     except Exception as exc:
         status = build_status_from_error(exc)
@@ -400,19 +468,19 @@ async def call_mistral(state: GraphState) -> GraphState:
             messages=[format_response_message("Mistral 오류", error)],
         )
     try:
-        llm = ChatMistralAI(model="mistral-large-latest", temperature=0)
-        response = await _ainvoke(llm, prompt)
-        content = response.content if hasattr(response, "content") else str(response)
-        status = build_status_from_response(response)
+        settings = get_settings()
+        llm = ChatMistralAI(model=settings.model_mistral, temperature=0)
+        content, source, status = await _invoke_parsed(llm, prompt, "Mistral")
         summary = await _summarize_content(llm, content, "Mistral")
-        logger.info("Mistral 응답 완료: %s", status.get("detail"))
+        logger.info("Mistral 응답 완료")
         return GraphState(
             mistral_answer=content,
             mistral_status=status,
             mistral_summary=summary,
             raw_responses={"Mistral": content},
+            raw_sources={"Mistral": source},
             self_summaries={"Mistral": summary},
-            messages=[format_response_message("Mistral", response)],
+            messages=[format_response_message("Mistral", content)],
         )
     except Exception as exc:
         status = build_status_from_error(exc)
@@ -438,19 +506,19 @@ async def call_groq(state: GraphState) -> GraphState:
             messages=[format_response_message("Groq 오류", error)],
         )
     try:
-        llm = ChatGroq(model="llama3-70b-8192", temperature=0)
-        response = await _ainvoke(llm, prompt)
-        content = response.content if hasattr(response, "content") else str(response)
-        status = build_status_from_response(response)
+        settings = get_settings()
+        llm = ChatGroq(model=settings.model_groq, temperature=0)
+        content, source, status = await _invoke_parsed(llm, prompt, "Groq")
         summary = await _summarize_content(llm, content, "Groq")
-        logger.info("Groq 응답 완료: %s", status.get("detail"))
+        logger.info("Groq 응답 완료")
         return GraphState(
             groq_answer=content,
             groq_status=status,
             groq_summary=summary,
             raw_responses={"Groq": content},
+            raw_sources={"Groq": source},
             self_summaries={"Groq": summary},
-            messages=[format_response_message("Groq", response)],
+            messages=[format_response_message("Groq", content)],
         )
     except Exception as exc:
         status = build_status_from_error(exc)
@@ -476,19 +544,19 @@ async def call_cohere(state: GraphState) -> GraphState:
             messages=[format_response_message("Cohere 오류", error)],
         )
     try:
-        llm = ChatCohere(model="command-r-plus", temperature=0)
-        response = await _ainvoke(llm, prompt)
-        content = response.content if hasattr(response, "content") else str(response)
-        status = build_status_from_response(response)
+        settings = get_settings()
+        llm = ChatCohere(model=settings.model_cohere, temperature=0)
+        content, source, status = await _invoke_parsed(llm, prompt, "Cohere")
         summary = await _summarize_content(llm, content, "Cohere")
-        logger.info("Cohere 응답 완료: %s", status.get("detail"))
+        logger.info("Cohere 응답 완료")
         return GraphState(
             cohere_answer=content,
             cohere_status=status,
             cohere_summary=summary,
             raw_responses={"Cohere": content},
+            raw_sources={"Cohere": source},
             self_summaries={"Cohere": summary},
-            messages=[format_response_message("Cohere", response)],
+            messages=[format_response_message("Cohere", content)],
         )
     except Exception as exc:
         status = build_status_from_error(exc)

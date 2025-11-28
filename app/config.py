@@ -32,6 +32,14 @@ class Settings:
     upstash_redis_url: str | None = None
     upstash_redis_token: str | None = None
     daily_usage_limit: int = 3
+    model_openai: str = "gpt-5-nano"
+    model_gemini: str = "gemini-2.5-flash-lite"
+    model_anthropic: str = "claude-haiku-4-5-20251001"
+    model_upstage: str = "solar-mini"
+    model_perplexity: str = "sonar"
+    model_mistral: str = "mistral-large-latest"
+    model_groq: str = "llama3-70b-8192"
+    model_cohere: str = "command-r-plus"
 
     @staticmethod
     def from_env() -> Settings:
@@ -57,6 +65,14 @@ class Settings:
             upstash_redis_url=os.getenv("UPSTASH_REDIS_URL"),
             upstash_redis_token=os.getenv("UPSTASH_REDIS_TOKEN"),
             daily_usage_limit=int(os.getenv("DAILY_USAGE_LIMIT", "3")),
+            model_openai=os.getenv("MODEL_OPENAI", "gpt-5-nano"),
+            model_gemini=os.getenv("MODEL_GEMINI", "gemini-2.5-flash-lite"),
+            model_anthropic=os.getenv("MODEL_ANTHROPIC", "claude-haiku-4-5-20251001"),
+            model_upstage=os.getenv("MODEL_UPSTAGE", "solar-mini"),
+            model_perplexity=os.getenv("MODEL_PERPLEXITY", "sonar"),
+            model_mistral=os.getenv("MODEL_MISTRAL", "mistral-large-latest"),
+            model_groq=os.getenv("MODEL_GROQ", "llama3-70b-8192"),
+            model_cohere=os.getenv("MODEL_COHERE", "command-r-plus"),
         )
 
 

@@ -191,6 +191,7 @@ async def stream_graph(
                     "node": node_name,
                     "answer": state.get(meta["answer_key"]),
                     "status": state.get(meta["status_key"]) or {},
+                    "source": (state.get("raw_sources") or {}).get(meta["label"]),
                     "messages": _normalize_messages(state.get("messages")),
                     "type": "partial",
                     "turn": turn_index,
