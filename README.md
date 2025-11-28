@@ -1,7 +1,7 @@
-# Compare AI (Backend)
+# Compare-AI (Backend)
 
 FastAPI 기반 멀티 LLM 비교 API (프런트는 별도 레포 `compare-ai-fe`)  
-> **최종 업데이트: 2025-11-26** — 백엔드/프런트 분리 준비, 배포용 의존성 정리
+> **최종 업데이트: 2025-11-28** — 인증/회원가입, 레이트리밋, JWKS 폴백, 사용량 헤더 동기화 추가
 
 ## 📋 프로젝트 개요
 
@@ -51,14 +51,14 @@ LANGSMITH_PROJECT=yout-project-name
 SUPABASE_URL=https://xxxx.supabase.co
 SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
-# 선택: 명시적 JWKS URL, Audience 변경
-# SUPABASE_JWKS_URL=https://xxxx.supabase.co/auth/v1/jwks
-# SUPABASE_JWT_AUD=authenticated
+# JWKS는 .well-known/jwks.json 경로를 권장
+SUPABASE_JWKS_URL=https://xxxx.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_JWT_AUD=authenticated
 
-# Upstash Redis (일일 사용량 제한)
+# Upstash Redis (일일 사용량 제한, 기본 3회)
 UPSTASH_REDIS_URL=...
 UPSTASH_REDIS_TOKEN=...
-DAILY_USAGE_LIMIT=100
+DAILY_USAGE_LIMIT=3
 
 # 관리자 우회 토큰 (인증/레이트리밋 무시)
 ADMIN_BYPASS_TOKEN=choose-a-strong-token
@@ -78,18 +78,19 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 api-test/
 ├── app/
-│   ├── __init__.py
 │   ├── config.py                  # Pydantic Settings (환경변수 관리)
 │   ├── main.py                    # FastAPI 앱 팩토리
-│   ├── api/
-│   │   └── routes.py              # FastAPI 엔드포인트 정의 (인증/레이트리밋 포함)
-│   ├── services/
-│   │   └── langgraph.py           # LangGraph 워크플로우 및 LLM 호출
-│   └── ui/
-│       └── streamlit_app.py       # (레거시) Streamlit UI, BE 빌드에는 미포함
-├── scripts/
-│   └── run_app.py                 # FastAPI 단일 실행 스크립트
-├── main.py                        # scripts/run_app.py 래퍼
+│   ├── api/                       # 라우터/스키마/의존성
+│   │   ├── routes.py              # /health, /api/ask
+│   │   ├── auth_routes.py         # /auth/register, /auth/login
+│   │   ├── deps.py                # Depends: get_current_user 등
+│   │   └── schemas/               # ask.py, auth.py
+│   ├── auth/                      # Supabase 검증/클라이언트
+│   ├── rate_limit/                # Upstash 클라이언트/Depends
+│   ├── services/langgraph/        # LangGraph 워크플로우 분할
+│   └── ui/                        # Streamlit 로컬 UI (개발용)
+├── scripts/run_app.py             # FastAPI+Streamlit 실행 스크립트
+├── main.py                        # scripts/run_app.py 래퍼(또는 APP_MODE=api)
 ├── notebooks/
 │   └── api_langgraph_test.ipynb
 ├── docs/
@@ -152,6 +153,10 @@ Content-Type: application/json
 ...
 {"type":"summary","result":{"question":"AI란 무엇인가?","answers":{...},"api_status":{...},"messages":[...]}}
 ```
+
+**사용량 헤더(있을 경우)**
+- `X-Usage-Limit`: 일일 한도
+- `X-Usage-Remaining`: 이번 호출 기준 남은 횟수 (Upstash 오류 시 미포함)
 
 ## 📝 변경 이력
 
