@@ -38,6 +38,17 @@ def _usage_limit_int() -> int:
         return 3
 
 
+def _sync_usage_from_headers(resp: requests.Response) -> None:
+    """서버 헤더의 사용량 정보를 세션에 반영한다."""
+
+    limit = resp.headers.get("X-Usage-Limit")
+    remaining = resp.headers.get("X-Usage-Remaining")
+    if limit is not None and limit.isdigit():
+        st.session_state["usage_limit"] = int(limit)
+    if remaining is not None and remaining.isdigit():
+        st.session_state["usage_remaining"] = int(remaining)
+
+
 def main() -> None:
     st.title("API LangGraph Test")
     st.caption("멀티 LLM 비교 (FastAPI + LangGraph)")
@@ -142,6 +153,7 @@ def main() -> None:
                     stream=True,
                     timeout=60,
                 )
+                _sync_usage_from_headers(resp)
                 st.write(f"Status: {resp.status_code}")
                 st.write("응답 스트림:")
                 for line in resp.iter_lines():
@@ -157,8 +169,10 @@ def main() -> None:
                 if resp.status_code == 429:
                     st.session_state["usage_remaining"] = 0
                 elif resp.ok and not st.session_state.get("use_admin_bypass"):
-                    new_value = max(0, st.session_state.get("usage_remaining", _usage_limit_int()) - 1)
-                    st.session_state["usage_remaining"] = new_value
+                    # 서버가 헤더로 내려준 값을 우선 사용하고, 없으면 클라이언트 감소
+                    if "X-Usage-Remaining" not in resp.headers:
+                        new_value = max(0, st.session_state.get("usage_remaining", _usage_limit_int()) - 1)
+                        st.session_state["usage_remaining"] = new_value
                     st.rerun()
             except Exception as exc:  # pragma: no cover - UI 예외
                 st.error(f"요청 실패: {exc}")

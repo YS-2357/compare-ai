@@ -60,8 +60,9 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
 
     logger.info("질문 수신: %s", _preview(question))
 
+    usage_remaining: int | None = None
     if not user.get("bypass"):
-        await enforce_daily_limit(user["sub"], settings.daily_usage_limit)
+        usage_remaining = await enforce_daily_limit(user["sub"], settings.daily_usage_limit)
 
     async def response_stream():
         answers = {}
@@ -150,9 +151,15 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                     "errors": errors,
                     "turn": turn,
                     "max_turns": max_turns,
+                    "usage_limit": settings.daily_usage_limit,
+                    "usage_remaining": usage_remaining,
                 },
             }
             logger.info("요약 응답 전송 - 완료 모델 수: %d, 오류 수: %d", len(answers), len(errors))
             yield json.dumps(summary, ensure_ascii=False) + "\n"
 
-    return StreamingResponse(response_stream(), media_type="application/json")
+    headers = {}
+    if usage_remaining is not None:
+        headers["X-Usage-Limit"] = str(settings.daily_usage_limit)
+        headers["X-Usage-Remaining"] = str(usage_remaining)
+    return StreamingResponse(response_stream(), media_type="application/json", headers=headers)

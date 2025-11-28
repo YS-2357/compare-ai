@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 
 from app.logger import get_logger
-
 from .upstash import get_rate_limiter
 
 logger = get_logger(__name__)
@@ -19,8 +18,12 @@ def _seconds_until_midnight_utc() -> int:
     return int((tomorrow - now).total_seconds())
 
 
-async def enforce_daily_limit(user_id: str, limit: int) -> None:
-    """사용자별 일일 호출 제한을 적용한다."""
+async def enforce_daily_limit(user_id: str, limit: int) -> int | None:
+    """사용자별 일일 호출 제한을 적용한다.
+
+    Returns:
+        남은 사용 가능 횟수(int) 또는 백엔드 오류 시 None.
+    """
 
     try:
         client = get_rate_limiter()
@@ -31,11 +34,12 @@ async def enforce_daily_limit(user_id: str, limit: int) -> None:
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="daily usage limit exceeded",
             )
+        return max(0, limit - count)
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - 백엔드 장애 시 우회
         logger.warning("레이트리밋 백엔드 오류, 우회 적용: %s", exc)
-        return
+        return None
 
 
 __all__ = ["enforce_daily_limit"]
