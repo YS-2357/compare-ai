@@ -120,9 +120,11 @@ def main() -> None:
         st.stop()
 
     # 로그인 후 질문 뷰
-    st.header("질문하기")
+    st.header("대화")
     if "usage_remaining" not in st.session_state:
         st.session_state["usage_remaining"] = _usage_limit_int()
+    if "chat_log" not in st.session_state:
+        st.session_state["chat_log"] = []
     if user := st.session_state.get("auth_user"):
         st.caption(f"로그인됨: {user.get('email')}")
     remaining = st.session_state.get("usage_remaining", _usage_limit_int())
@@ -131,10 +133,35 @@ def main() -> None:
         st.session_state.pop("auth_token", None)
         st.session_state.pop("auth_user", None)
         st.session_state.pop("usage_remaining", None)
+        st.session_state.pop("chat_log", None)
         st.rerun()
 
-    question = st.text_area("질문을 입력하세요", height=120)
-    if st.button("질문하기"):
+    chat_area = st.container()
+    if st.session_state["chat_log"]:
+        for idx, item in enumerate(reversed(st.session_state["chat_log"])):
+            with chat_area:
+                st.markdown(f"**Q{len(st.session_state['chat_log'])-idx}:** {item.get('question')}")
+                answers = item.get("answers") or {}
+                sources = item.get("sources") or {}
+                for model, answer in answers.items():
+                    src = sources.get(model)
+                    st.write(f"[{model}] {answer}")
+                    if src:
+                        st.caption(f"출처: {src}")
+                st.divider()
+    else:
+        chat_area.info("아직 대화가 없습니다. 질문을 입력해보세요.")
+
+    question = st.text_area("질문을 입력하세요", height=120, placeholder="여기에 질문을 입력하세요")
+    send_col, reset_col = st.columns([3, 1])
+    with send_col:
+        send_clicked = st.button("질문하기", use_container_width=True)
+    with reset_col:
+        if st.button("입력 지우기", use_container_width=True):
+            st.session_state["current_question"] = ""
+            st.rerun()
+
+    if send_clicked:
         if not question.strip():
             st.warning("질문을 입력해주세요.")
             return
@@ -148,6 +175,8 @@ def main() -> None:
             headers["x-admin-bypass"] = admin_token
         with st.spinner("질문 보내는 중..."):
             try:
+                answers_acc: dict[str, str] = {}
+                sources_acc: dict[str, str | None] = {}
                 resp = requests.post(
                     ask_url,
                     headers=headers,
@@ -156,8 +185,7 @@ def main() -> None:
                     timeout=60,
                 )
                 _sync_usage_from_headers(resp)
-                st.write(f"Status: {resp.status_code}")
-                st.write("응답 스트림:")
+                stream_lines = []
                 for line in resp.iter_lines():
                     if not line:
                         continue
@@ -165,15 +193,25 @@ def main() -> None:
                         parsed = json.loads(line.decode("utf-8"))
                     except Exception:
                         parsed = line
-                    if isinstance(parsed, dict):
-                        src = parsed.get("source")
-                        if src:
-                            st.write(parsed)
-                            st.caption(f"출처: {src}")
-                        else:
-                            st.write(parsed)
-                    else:
-                        st.write(parsed)
+                    stream_lines.append(parsed)
+                    if isinstance(parsed, dict) and parsed.get("type") == "partial":
+                        model = parsed.get("model")
+                        if model:
+                            answers_acc[model] = parsed.get("answer")
+                            sources_acc[model] = parsed.get("source")
+                # 스트림 완료 후 summary 저장
+                summary = None
+                for item in stream_lines[::-1]:
+                    if isinstance(item, dict) and item.get("type") == "summary":
+                        summary = item
+                        break
+                if summary:
+                    result = summary.get("result") or {}
+                    answers_acc = result.get("answers") or answers_acc
+                    sources_acc = result.get("sources") or sources_acc
+                st.session_state["chat_log"].append(
+                    {"question": question, "answers": answers_acc, "sources": sources_acc}
+                )
 
                 # 응답 완료 후 남은 횟수 갱신
                 if resp.status_code == 429:
@@ -183,7 +221,7 @@ def main() -> None:
                     if "X-Usage-Remaining" not in resp.headers:
                         new_value = max(0, st.session_state.get("usage_remaining", _usage_limit_int()) - 1)
                         st.session_state["usage_remaining"] = new_value
-                    st.rerun()
+                st.rerun()
             except Exception as exc:  # pragma: no cover - UI 예외
                 st.error(f"요청 실패: {exc}")
 
