@@ -1,5 +1,7 @@
 # app/ui/
 
+> 최종 업데이트: 2025-12-03 — 멀티턴 history 전송/스트림 파서 모듈화, 사용량 동기화 로직 유지
+
 - Streamlit 로컬/개발용 UI (별도 Render 서비스로도 사용 가능).
 - 로그인/회원가입 → 질문 → 스트림(partial/summary) 표시, 모델별 답변과 source 표시.
 - 사용량 헤더(`X-Usage-Limit`, `X-Usage-Remaining`)를 읽어 카운터를 동기화.

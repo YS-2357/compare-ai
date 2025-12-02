@@ -1,7 +1,7 @@
 # Compare-AI (Backend)
 
 FastAPI 기반 멀티 LLM 비교 API (프런트는 별도 레포 `compare-ai-fe`)  
-> **최종 업데이트: 2025-11-28** — 인증/회원가입, 레이트리밋, JWKS 폴백, 사용량 헤더 동기화, Streamlit 대화 로그 유지
+> **최종 업데이트: 2025-12-03** — 멀티턴 컨텍스트/모델별 요약 적용, Streamlit 멀티턴 전송 정리, 기본 모델 gpt-4o-mini로 상향
 
 ## 📋 프로젝트 개요
 

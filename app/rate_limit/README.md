@@ -1,5 +1,7 @@
 # app/rate_limit/
 
+> 최종 업데이트: 2025-12-03 — Upstash 실패 시 로컬 캐시 폴백(3회) 동작 확인 상태 유지
+
 - Upstash Redis 기반 일일 사용량 제한.
 - `upstash.py`: 클라이언트(`INCR` + `EXPIRE` 파이프라인).
 - `dependencies.py`: `enforce_daily_limit` (Upstash 실패 시 로컬 메모리 캐시 폴백).

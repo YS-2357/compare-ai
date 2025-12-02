@@ -1,5 +1,7 @@
 # app/api/
 
+> 최종 업데이트: 2025-12-03 — `/api/ask` 멀티턴 history 전달/스트림 이벤트 정리 반영
+
 - `routes.py`: `/health`, `/api/ask` 스트림 엔드포인트.
 - `auth_routes.py`: `/auth/register`, `/auth/login` (Supabase Auth REST).
 - `deps.py`: 공용 Depends (현재 사용자, 설정, 레이트리밋).
