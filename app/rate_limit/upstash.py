@@ -40,6 +40,25 @@ class UpstashClient:
         except Exception as exc:  # pragma: no cover
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="rate limit parse error") from exc
 
+    async def get(self, key: str) -> int:
+        """현재 카운트를 조회한다. 존재하지 않으면 0."""
+
+        payload: list[list[Any]] = [["GET", key]]
+        async with self._lock:
+            resp = await self._client.post(
+                f"{self.url}/pipeline",
+                headers={"Authorization": f"Bearer {self.token}"},
+                json=payload,
+            )
+        if resp.status_code >= 400:
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="rate limit backend error")
+        data = resp.json()
+        try:
+            value = data[0]["result"]
+            return int(value) if value is not None else 0
+        except Exception as exc:  # pragma: no cover
+            raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="rate limit parse error") from exc
+
 
 _client: UpstashClient | None = None
 
@@ -59,4 +78,3 @@ def get_rate_limiter() -> UpstashClient:
 
 
 __all__ = ["UpstashClient", "get_rate_limiter"]
-

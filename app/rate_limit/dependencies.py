@@ -10,29 +10,12 @@ from app.logger import get_logger
 from .upstash import get_rate_limiter
 
 logger = get_logger(__name__)
-_fallback_cache: dict[str, tuple[str, int]] = {}
 
 
 def _seconds_until_midnight_utc() -> int:
     now = datetime.now(timezone.utc)
     tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return int((tomorrow - now).total_seconds())
-
-
-async def _fallback_enforce(user_id: str, limit: int) -> int:
-    """Upstash 장애 시 프로세스 메모리 기반으로 카운트."""
-
-    today = datetime.now(timezone.utc).date().isoformat()
-    key = f"{user_id}:{today}"
-    _, count = _fallback_cache.get(key, (today, 0))
-    count += 1
-    _fallback_cache[key] = (today, count)
-    if count > limit:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="daily usage limit exceeded (fallback)",
-        )
-    return max(0, limit - count)
 
 
 async def enforce_daily_limit(user_id: str, limit: int) -> int:
@@ -50,9 +33,12 @@ async def enforce_daily_limit(user_id: str, limit: int) -> int:
         return max(0, limit - count)
     except HTTPException:
         raise
-    except Exception as exc:  # pragma: no cover - 백엔드 장애 시 우회
-        logger.warning("레이트리밋 백엔드 오류, 로컬 폴백 적용: %s", exc)
-        return await _fallback_enforce(user_id, limit)
+    except Exception as exc:
+        logger.error("레이트리밋 백엔드 오류: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="rate limit backend unavailable",
+        )
 
 
 __all__ = ["enforce_daily_limit"]

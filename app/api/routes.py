@@ -12,6 +12,7 @@ from app.api.schemas import AskRequest
 from app.logger import get_logger
 from app.services import stream_graph
 from app.services.langgraph import DEFAULT_MAX_TURNS
+from app.rate_limit.router import router as usage_router
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -167,3 +168,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
         headers["X-Usage-Limit"] = str(settings.daily_usage_limit)
         headers["X-Usage-Remaining"] = str(usage_remaining)
     return StreamingResponse(response_stream(), media_type="application/json", headers=headers)
+
+
+# 사용량 조회 라우터 포함
+router.include_router(usage_router)

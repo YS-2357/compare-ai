@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from typing import Annotated, Any, Callable, TypedDict
 
 from langchain_core.output_parsers import PydanticOutputParser
@@ -118,37 +119,37 @@ async def _maybe_summarize_history(
 ) -> tuple[list, dict[str, str]]:
     """
     모델별 히스토리를 갱신하고 필요 시 요약한다.
-    - turn >= 2 또는 메시지가 MAX_CONTEXT_MESSAGES 초과 시 요약
-    - 요약은 model_summaries[label]에 1개만 유지
+    - turn >= 2일 때 최근 MAX_CONTEXT_MESSAGES(기본 10) 기준으로 요약
+    - 요약은 model_summaries[label]에 1개만 유지하고, 히스토리는 최근 메시지만 보존
     """
 
     existing = (state.get("model_messages") or {}).get(label, [])
     updated = add_messages(existing, new_messages)
     summaries = state.get("model_summaries") or {}
 
-    should_summarize = (turn or 1) >= 2 and len(updated) > MAX_CONTEXT_MESSAGES
+    # 최근 대화 10개만 살펴 요약(멀티턴 시)
+    recent_messages = updated[-MAX_CONTEXT_MESSAGES:]
+    should_summarize = (turn or 1) >= 2 and len(recent_messages) >= 3
     if should_summarize:
-        # 히스토리를 문자열로 합쳐 요약
         text_lines = []
-        for msg in updated:
+        for msg in recent_messages:
             msg_text = _message_to_text(msg)
             if msg_text:
                 text_lines.append(msg_text)
         history_text = "\n".join(text_lines)
         summary = await _summarize_content(llm, history_text, label)
         summaries[label] = summary
-        # 최근 메시지만 남기되 요약은 별도 필드에 저장
-        updated = updated[-MAX_CONTEXT_MESSAGES:]
         logger.info(
             "history/summarize label=%s turn=%s msgs_before=%d msgs_after=%d summary_len=%d preview=%s",
             label,
             turn,
             len(existing),
-            len(updated),
+            len(recent_messages),
             len(summary),
             _preview(summary),
         )
-    return updated, summaries
+    # 컨텍스트 부풀림을 막기 위해 최근 메시지만 유지
+    return recent_messages, summaries
 
 
 def _build_prompt_input(state: GraphState, label: str) -> str:
@@ -160,35 +161,51 @@ def _build_prompt_input(state: GraphState, label: str) -> str:
     history_text = _render_history_for_model(state, label, max_messages=MAX_CONTEXT_MESSAGES)
     current_question = state.get("question", "")
     return (
-        "[대화 이력]\n"
+        "[Conversation History]\n"
         f"{history_text}\n\n"
-        "[현재 질문]\n"
+        "[Current Question]\n"
         f"{current_question}\n\n"
-        "모호한 표현은 직전 주제나 대화 흐름을 이어서 해석하세요."
+        "If anything is ambiguous, prefer the most recent topic or flow. Respond only in Korean."
     )
 
 
 def _extract_source(extras: dict[str, Any] | None) -> str | None:
     """추가 메타에서 출처 URL을 추출한다."""
 
+    def _maybe_url(value: Any) -> str | None:
+        if isinstance(value, str):
+            match = re.search(r"https?://\S+", value)
+            if match:
+                return match.group(0).rstrip(".,);]")
+        if isinstance(value, dict):
+            for key in ("url", "source", "link", "href"):
+                candidate = value.get(key)
+                if candidate:
+                    found = _maybe_url(candidate)
+                    if found:
+                        return found
+        return None
+
     if not extras:
         return None
     citations = extras.get("citations")
-    if isinstance(citations, list) and citations:
-        first = citations[0]
-        if isinstance(first, str):
-            return first
-        if isinstance(first, dict):
-            url = first.get("url") or first.get("source")
+    if isinstance(citations, list):
+        for item in citations:
+            url = _maybe_url(item)
             if url:
-                return str(url)
+                return url
     search_results = extras.get("search_results")
-    if isinstance(search_results, list) and search_results:
-        item = search_results[0]
-        if isinstance(item, dict):
-            url = item.get("url")
+    if isinstance(search_results, list):
+        for item in search_results:
+            url = _maybe_url(item)
             if url:
-                return str(url)
+                return url
+    sources = extras.get("sources")
+    if isinstance(sources, list):
+        for item in sources:
+            url = _maybe_url(item)
+            if url:
+                return url
     return None
 
 

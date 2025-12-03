@@ -4,11 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.logger import get_logger
-from app.parsers.text import SUMMARY_PARSER
-from app.prompts.summarize import SUMMARY_PROMPT
 
 logger = get_logger(__name__)
+SUMMARY_PROMPT = ChatPromptTemplate.from_template(
+    "Summarize the following answer in Korean, in 2 sentences or fewer (under 400 characters).\n\n"
+    "Answer:\n{answer}\n"
+)
+SUMMARY_PARSER = StrOutputParser()
 
 
 def _preview(text: str, limit: int = 80) -> str:
@@ -30,4 +36,3 @@ async def _summarize_content(llm: Any, content: str, label: str) -> str:
 
 
 __all__ = ["_preview", "_summarize_content"]
-

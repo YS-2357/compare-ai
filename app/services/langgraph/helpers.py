@@ -51,9 +51,8 @@ def _build_prompt() -> ChatPromptTemplate:
     parser = PydanticOutputParser(pydantic_object=Answer)
     instructions = parser.get_format_instructions()
     system = (
-        "당신은 멀티턴 챗봇입니다. 위에 주어진 대화 히스토리를 참고해 맥락을 잇되, "
-        "없으면 새 질문으로 간결히 답변하세요. 모르면 모른다고 말합니다. "
-        "5문장 이하, 400자 이하로 핵심만 답변하세요.\n"
+        "You are a multi-turn chatbot. Use the provided conversation history to maintain context; if none, treat it as a new question. "
+        "If you are unsure, say so. Respond only in Korean. Keep answers under 5 sentences and under 400 characters.\n"
         "{format_instructions}"
     )
     return ChatPromptTemplate.from_messages(
@@ -131,18 +130,18 @@ def _build_prompt_input(state: Any, label: str) -> str:
                 break
     if history_text.strip():
         prompt = (
-            "[대화 이력]\n"
+            "[Conversation History]\n"
             f"{history_text}\n\n"
-            "[현재 질문]\n"
+            "[Current Question]\n"
             f"{current_question}\n\n"
-            "모호한 표현은 직전 주제나 대화 흐름을 이어서 해석하세요."
+            "If the wording is ambiguous, prefer the most recent topic or flow. Respond only in Korean."
         )
         mode = "with_history"
     else:
         prompt = (
-            "[현재 질문]\n"
+            "[Current Question]\n"
             f"{current_question}\n\n"
-            "지금은 첫 질문입니다. 이전 대화는 없으니 질문 자체에 명확히 답변하세요."
+            "This is the first turn; there is no prior conversation. Answer clearly and only in Korean."
         )
         mode = "first_turn"
     logger.info(

@@ -1,7 +1,7 @@
 # Compare-AI (Backend)
 
 FastAPI 기반 멀티 LLM 비교 API (프런트는 별도 레포 `compare-ai-fe`)  
-> **최종 업데이트: 2025-12-03** — 멀티턴 컨텍스트/모델별 요약 적용, Streamlit 멀티턴 전송 정리, 기본 모델 gpt-4o-mini로 상향
+> **최종 업데이트: 2025-12-03** — 스트리밍 순차 표시(모델별), 프롬프트 영어화/응답은 한국어, Upstash 필수 + `/usage` 조회, 기본 모델 gpt-4o-mini
 
 ## 📋 프로젝트 개요
 
@@ -13,6 +13,7 @@ FastAPI 기반 멀티 LLM 비교 API (프런트는 별도 레포 `compare-ai-fe`
 - **Frontend**: 별도 레포 `compare-ai-fe`(예: Next.js + Supabase Auth)
 - **워크플로우**: LangGraph (병렬 실행)
 - **추적/로깅**: LangSmith
+- **레이트리밋**: Upstash Redis(필수), 일일 호출 제한 조회/차단
 - **배포**: Render/Vercel 등 서버리스·컨테이너, HTTPS 기본 (배포 편의를 위해 의존성/파이썬 버전 고정)
 
 ## 🚀 빠른 시작 (백엔드)
@@ -55,7 +56,7 @@ SUPABASE_SERVICE_ROLE_KEY=...
 SUPABASE_JWKS_URL=https://xxxx.supabase.co/auth/v1/.well-known/jwks.json
 SUPABASE_JWT_AUD=authenticated
 
-# Upstash Redis (일일 사용량 제한, 기본 3회)
+# Upstash Redis (일일 사용량 제한, 기본 3회, 필수)
 UPSTASH_REDIS_URL=...
 UPSTASH_REDIS_TOKEN=...
 DAILY_USAGE_LIMIT=3
@@ -130,6 +131,12 @@ api-test/
 GET /health
 ```
 
+### 사용량 조회
+```bash
+GET /usage
+```
+JWT 필요. 관리자 우회 토큰 계정이면 `remaining`이 `null`로 내려가며 제한 없이 사용.
+
 ### 질문 처리
 ```bash
 POST /api/ask
@@ -156,7 +163,7 @@ Content-Type: application/json
 
 **사용량 헤더(있을 경우)**
 - `X-Usage-Limit`: 일일 한도 (`DAILY_USAGE_LIMIT`, 기본 3)
-- `X-Usage-Remaining`: 이번 호출 기준 남은 횟수 (Upstash 오류 시 미포함, 장애 시에도 로컬 캐시로 3회 제한 유지)
+- `X-Usage-Remaining`: 이번 호출 기준 남은 횟수 (Upstash 장애 시 503/429 반환, 폴백 없음)
 
 ## 📝 변경 이력
 
