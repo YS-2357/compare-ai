@@ -92,15 +92,29 @@ def _normalize_messages(messages: list | None) -> list[dict[str, str]]:
 
 
 async def stream_graph(
-    question: str, *, turn: int = 1, max_turns: int | None = None, history: list[dict[str, str]] | None = None
+    question: str,
+    *,
+    turn: int = 1,
+    max_turns: int | None = None,
+    history: list[dict[str, str]] | None = None,
+    model_overrides: dict[str, str] | None = None,
+    bypass_turn_limit: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
-    """질문을 받아 LangGraph 워크플로우에서 발생하는 이벤트를 스트리밍한다."""
+    """질문을 받아 LangGraph 워크플로우에서 발생하는 이벤트를 스트리밍한다.
+
+    Args:
+        question: 사용자 입력 질문.
+        turn: 현재 턴 인덱스.
+        max_turns: 최대 허용 턴 수.
+        history: 이전 대화 기록.
+        model_overrides: 공급자별 모델명을 덮어쓰는 매핑.
+    """
 
     if not question or not question.strip():
         raise ValueError("질문을 입력해주세요.")
 
     resolved_max_turns = max_turns or settings_cache.max_turns_default
-    if turn > resolved_max_turns:
+    if not bypass_turn_limit and turn > resolved_max_turns:
         warning = f"최대 턴({resolved_max_turns})을 초과했습니다. 새 질문으로 시작해주세요."
         logger.warning("턴 초과 - 실행 중단: turn=%s, max=%s", turn, resolved_max_turns)
         yield {"type": "error", "message": warning, "node": None, "model": None, "turn": turn}
@@ -126,6 +140,7 @@ async def stream_graph(
             model_messages[model_label] = msgs
         else:
             user_messages.append((role, content))
+    # 히스토리의 마지막 user 메시지가 곧 현재 질문이 되도록 항상 추가한다.
     user_messages.append(("user", base_question))
     state_inputs: GraphState = {
         "max_turns": resolved_max_turns,
@@ -134,6 +149,7 @@ async def stream_graph(
         "user_messages": user_messages,
         "model_messages": model_messages,
         "model_summaries": {},
+        "model_overrides": model_overrides or {},
     }
 
     config = RunnableConfig(recursion_limit=20, configurable={"thread_id": str(create_uuid())})
