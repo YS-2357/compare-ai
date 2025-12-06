@@ -52,6 +52,12 @@ def merge_model_messages(existing: dict | None, new: dict | None) -> dict:
     return merged
 
 
+def _resolve_model_name(state: GraphState, key: str, default: str) -> str:
+    overrides = state.get("model_overrides") or {}
+    override = overrides.get(key)
+    return override or default
+
+
 class GraphState(TypedDict, total=False):
     """LangGraph 실행 시 공유되는 상태 정의."""
 
@@ -63,6 +69,7 @@ class GraphState(TypedDict, total=False):
     user_messages: Annotated[list, add_messages]
     model_messages: Annotated[dict[str, list], merge_model_messages]
     model_summaries: Annotated[dict[str, str] | None, merge_dicts]
+    model_overrides: Annotated[dict[str, str] | None, merge_dicts]
 
     # 호출 메타(필요 시 사용)
     raw_responses: Annotated[dict[str, str] | None, merge_dicts]
@@ -156,10 +163,19 @@ def _build_prompt_input(state: GraphState, label: str) -> str:
     """
     대화 이력과 현재 질문을 분리해 전달한다.
     - history: 모델별 인터리브된 최근 히스토리
-    - question: 현재 질문
+    - question: 최근 user 메시지(현재 질문)
     """
     history_text = _render_history_for_model(state, label, max_messages=MAX_CONTEXT_MESSAGES)
-    current_question = state.get("question", "")
+    current_question = ""
+    user_messages = state.get("user_messages") or []
+    for message in reversed(user_messages):
+        # user 역할의 최신 메시지가 곧 현재 질문이다.
+        if isinstance(message, (list, tuple)) and len(message) == 2 and message[0] == "user":
+            current_question = str(message[1])
+            break
+        if isinstance(message, dict) and message.get("role") == "user":
+            current_question = str(message.get("content", ""))
+            break
     return (
         "[Conversation History]\n"
         f"{history_text}\n\n"
@@ -268,6 +284,7 @@ def init_question(state: GraphState) -> GraphState:
         user_messages=user_messages,
         model_messages=model_messages,
         model_summaries=model_summaries,
+        model_overrides=state.get("model_overrides") or {},
     )
 
 
@@ -284,7 +301,8 @@ async def call_openai(state: GraphState) -> GraphState:
     """OpenAI 모델을 호출하고 응답/상태를 반환한다."""
 
     settings = get_settings()
-    llm_factory = lambda: ChatOpenAI(model=settings.model_openai)
+    model_name = _resolve_model_name(state, "openai", settings.model_openai)
+    llm_factory = lambda: ChatOpenAI(model=model_name)
     return await _call_model_common("OpenAI", state, llm_factory)
 
 
@@ -292,7 +310,8 @@ async def call_gemini(state: GraphState) -> GraphState:
     """Google Gemini 모델을 호출한다."""
 
     settings = get_settings()
-    llm_factory = lambda: ChatGoogleGenerativeAI(model=settings.model_gemini, temperature=0)
+    model_name = _resolve_model_name(state, "gemini", settings.model_gemini)
+    llm_factory = lambda: ChatGoogleGenerativeAI(model=model_name, temperature=0)
     return await _call_model_common("Gemini", state, llm_factory)
 
 
@@ -300,7 +319,8 @@ async def call_anthropic(state: GraphState) -> GraphState:
     """Anthropic Claude 모델을 호출한다."""
 
     settings = get_settings()
-    llm_factory = lambda: ChatAnthropic(model=settings.model_anthropic, temperature=0)
+    model_name = _resolve_model_name(state, "anthropic", settings.model_anthropic)
+    llm_factory = lambda: ChatAnthropic(model=model_name, temperature=0)
     return await _call_model_common("Anthropic", state, llm_factory)
 
 
@@ -308,7 +328,8 @@ async def call_upstage(state: GraphState) -> GraphState:
     """Upstage Solar 모델을 호출한다."""
 
     settings = get_settings()
-    llm_factory = lambda: ChatUpstage(model=settings.model_upstage)
+    model_name = _resolve_model_name(state, "upstage", settings.model_upstage)
+    llm_factory = lambda: ChatUpstage(model=model_name)
     return await _call_model_common("Upstage", state, llm_factory)
 
 
@@ -320,7 +341,8 @@ async def call_perplexity(state: GraphState) -> GraphState:
         if not pplx_api_key:
             raise RuntimeError("PPLX_API_KEY is missing")
         settings = get_settings()
-        return ChatPerplexity(temperature=0, model=settings.model_perplexity, pplx_api_key=pplx_api_key)
+        model_name = _resolve_model_name(state, "perplexity", settings.model_perplexity)
+        return ChatPerplexity(temperature=0, model=model_name, pplx_api_key=pplx_api_key)
 
     msg_transform = lambda content, source: content if not source else f"{content} (src: {source})"
     return await _call_model_common("Perplexity", state, llm_factory, message_transform=msg_transform)
@@ -333,7 +355,8 @@ async def call_mistral(state: GraphState) -> GraphState:
         if ChatMistralAI is None:
             raise RuntimeError("langchain-mistralai 패키지가 설치되어 있지 않습니다.")
         settings = get_settings()
-        return ChatMistralAI(model=settings.model_mistral, temperature=0)
+        model_name = _resolve_model_name(state, "mistral", settings.model_mistral)
+        return ChatMistralAI(model=model_name, temperature=0)
 
     return await _call_model_common("Mistral", state, llm_factory)
 
@@ -345,7 +368,8 @@ async def call_groq(state: GraphState) -> GraphState:
         if ChatGroq is None:
             raise RuntimeError("langchain-groq 패키지가 설치되어 있지 않습니다.")
         settings = get_settings()
-        return ChatGroq(model=settings.model_groq, temperature=0)
+        model_name = _resolve_model_name(state, "groq", settings.model_groq)
+        return ChatGroq(model=model_name, temperature=0)
 
     return await _call_model_common("Groq", state, llm_factory)
 
@@ -357,7 +381,8 @@ async def call_cohere(state: GraphState) -> GraphState:
         if ChatCohere is None:
             raise RuntimeError("langchain-cohere 패키지가 설치되어 있지 않습니다.")
         settings = get_settings()
-        return ChatCohere(model=settings.model_cohere, temperature=0)
+        model_name = _resolve_model_name(state, "cohere", settings.model_cohere)
+        return ChatCohere(model=model_name, temperature=0)
 
     return await _call_model_common("Cohere", state, llm_factory)
 
@@ -408,4 +433,5 @@ __all__ = [
     "call_groq",
     "call_cohere",
     "format_response_message",
+    "_resolve_model_name",
 ]
