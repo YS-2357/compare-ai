@@ -1,13 +1,15 @@
-# app/services/langgraph/
+﻿# app/services/langgraph/
 
-- LangGraph 워크플로우 패키지.
-- `workflow.py`: 그래프 컴파일, 이벤트 스트림.
-- `nodes.py`: 각 모델 call_* 노드 (LCEL 체인 + Pydantic parser), 모델명은 `config.py`의 `MODEL_*` 사용.
-- `llm_registry.py`: LLM 클라이언트/환경 설정.
-- `summaries.py`: 요약 유틸.
-- `__init__.py`: `stream_graph`, `DEFAULT_MAX_TURNS` 노출.
+- LangGraph workflow package.
+- workflow.py: builds/compiles the graph, streams events, accepts model_overrides and ypass_turn_limit.
+- 
+odes.py: call_* nodes (LCEL chain + Pydantic parser) honour per-provider overrides via MODEL_* defaults.
+- helpers.py: prompt builder / structured parser (long-form Korean responses).
+- llm_registry.py: LLM clients + LangSmith UUID helper.
+- summaries.py: answer summarisation utilities.
+- __init__.py: exports stream_graph, DEFAULT_MAX_TURNS 등.
 
-이벤트 필드:
-- `answer`, `model`, `status`, `source`(있을 때), `messages`, `type`, `turn`, `elapsed_ms`.
-- summary에 `answers`, `api_status`, `sources`, `usage_limit/remaining` 포함.
+Event payloads:
+- partial: model, nswer, status, source?, messages, 	urn, elapsed_ms.
+- summary: nswers, pi_status, sources, durations_ms, messages, order, primary_model, usage_limit/remaining, model_overrides 등.
 

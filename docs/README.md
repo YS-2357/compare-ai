@@ -1,11 +1,11 @@
-# Docs Overview (updated 2025-12-03 for streaming/usage updates)
+﻿# Docs Overview (updated 2025-12-05 for model overrides / admin bypass)
 
-| 구분 | 설명 | 바로가기 |
+| Category | Description | Link |
 | --- | --- | --- |
-| 변경 로그 | 날짜별 변경 사항 인덱스 | [changelog/README.md](changelog/README.md) |
-| 개발 로그 | 일별 진행 상황 인덱스 | [development/README.md](development/README.md) |
-| 로드맵 | 연간 계획/우선순위 | [development/roadmap-2025.md](development/roadmap-2025.md) |
+| Changelog | Date-wise change log | [changelog/README.md](changelog/README.md) |
+| Dev Log | Daily progress notes | [development/README.md](development/README.md) |
+| Roadmap | Mid-term priorities | [development/roadmap-2025.md](development/roadmap-2025.md) |
 
-## 빠른 링크
-- 최근 변경 로그: [2025-12-03](changelog/2025-12-03.md)
-- 최근 개발 로그: [2025-12-03](development/2025-12-03.md)
+## Quick Links
+- Latest changelog: [2025-12-03](changelog/2025-12-03.md)
+- Latest dev log: [2025-12-05](development/2025-12-05.md)
