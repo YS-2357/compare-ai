@@ -26,13 +26,15 @@ class Settings:
     max_context_messages: int = 10  # 최근 메시지 유지 개수 (약 5턴: user/assistant 합산)
 
     env: Literal["local", "test", "prod"] = "local"
+    fastapi_title: str = "API LangGraph Test"
+    fastapi_version: str = "0.1.0"
     langsmith_project: str = "Compare-AI-BE"
     supabase_url: str | None = None
     supabase_jwks_url: str | None = None
     supabase_aud: str = "authenticated"
     supabase_anon_key: str | None = None
     supabase_service_role_key: str | None = None
-    admin_bypass_token: str | None = None
+    admin_email: str | None = None
     upstash_redis_url: str | None = None
     upstash_redis_token: str | None = None
     daily_usage_limit: int = 3
@@ -44,6 +46,9 @@ class Settings:
     model_mistral: str = "mistral-large-latest"
     model_groq: str = "llama3-70b-8192"
     model_cohere: str = "command-r-plus"
+    supabase_jwks_cache_ttl: int = 300
+    supabase_http_timeout: float = 5.0
+    upstash_http_timeout: float = 5.0
 
     @staticmethod
     def from_env() -> Settings:
@@ -59,13 +64,15 @@ class Settings:
             streamlit_port=int(os.getenv("STREAMLIT_SERVER_PORT", "8501")),
             streamlit_headless=os.getenv("STREAMLIT_SERVER_HEADLESS", "true").lower() == "true",
             env=os.getenv("APP_ENV", "local"),  # type: ignore[assignment]
+            fastapi_title=os.getenv("FASTAPI_TITLE", "API LangGraph Test"),
+            fastapi_version=os.getenv("FASTAPI_VERSION", "0.1.0"),
             langsmith_project=os.getenv("LANGSMITH_PROJECT", "Compare-AI-BE"),
             supabase_url=os.getenv("SUPABASE_URL"),
             supabase_jwks_url=os.getenv("SUPABASE_JWKS_URL"),
             supabase_aud=os.getenv("SUPABASE_JWT_AUD", "authenticated"),
             supabase_anon_key=os.getenv("SUPABASE_ANON_KEY"),
             supabase_service_role_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
-            admin_bypass_token=os.getenv("ADMIN_BYPASS_TOKEN"),
+            admin_email=os.getenv("ADMIN_EMAIL"),
             upstash_redis_url=(os.getenv("UPSTASH_REDIS_URL") or "").strip() or None,
             upstash_redis_token=(os.getenv("UPSTASH_REDIS_TOKEN") or "").strip() or None,
             daily_usage_limit=int(os.getenv("DAILY_USAGE_LIMIT", "3")),
@@ -77,6 +84,9 @@ class Settings:
             model_mistral=os.getenv("MODEL_MISTRAL", "mistral-large-latest"),
             model_groq=os.getenv("MODEL_GROQ", "llama3-70b-8192"),
             model_cohere=os.getenv("MODEL_COHERE", "command-r-plus"),
+            supabase_jwks_cache_ttl=int(os.getenv("SUPABASE_JWKS_CACHE_TTL", "300")),
+            supabase_http_timeout=float(os.getenv("SUPABASE_HTTP_TIMEOUT", "5")),
+            upstash_http_timeout=float(os.getenv("UPSTASH_HTTP_TIMEOUT", "5")),
             max_turns_default=int(os.getenv("MAX_TURNS_DEFAULT", "3")),
             max_context_messages=int(os.getenv("MAX_CONTEXT_MESSAGES", "10")),
         )
