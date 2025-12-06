@@ -14,10 +14,10 @@ from app.config import get_settings
 class UpstashClient:
     """간단한 Upstash REST 클라이언트."""
 
-    def __init__(self, url: str, token: str) -> None:
+    def __init__(self, url: str, token: str, timeout: float = 5.0) -> None:
         self.url = url.rstrip("/")
         self.token = token
-        self._client = httpx.AsyncClient(timeout=5)
+        self._client = httpx.AsyncClient(timeout=timeout)
         self._lock = asyncio.Lock()
 
     async def incr_with_expiry(self, key: str, ttl_seconds: int) -> int:
@@ -59,6 +59,11 @@ class UpstashClient:
         except Exception as exc:  # pragma: no cover
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="rate limit parse error") from exc
 
+    async def aclose(self) -> None:
+        """HTTP 클라이언트를 종료한다."""
+
+        await self._client.aclose()
+
 
 _client: UpstashClient | None = None
 
@@ -73,8 +78,24 @@ def get_rate_limiter() -> UpstashClient:
     settings = get_settings()
     if not settings.upstash_redis_url or not settings.upstash_redis_token:
         raise RuntimeError("Upstash Redis 설정이 없습니다.")
-    _client = UpstashClient(settings.upstash_redis_url, settings.upstash_redis_token)
+    _client = UpstashClient(
+        settings.upstash_redis_url,
+        settings.upstash_redis_token,
+        timeout=settings.upstash_http_timeout,
+    )
     return _client
 
 
-__all__ = ["UpstashClient", "get_rate_limiter"]
+async def shutdown_rate_limiter() -> None:
+    """FastAPI lifespan에서 Upstash 클라이언트를 정리한다."""
+
+    global _client
+    if _client is None:
+        return
+    try:
+        await _client.aclose()
+    finally:
+        _client = None
+
+
+__all__ = ["UpstashClient", "get_rate_limiter", "shutdown_rate_limiter"]
