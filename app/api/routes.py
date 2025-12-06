@@ -65,6 +65,9 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     if not user.get("bypass"):
         usage_remaining = await enforce_daily_limit(user["sub"], settings.daily_usage_limit)
 
+    model_overrides = payload.models or None
+    bypass_limits = bool(user.get("bypass"))
+
     async def response_stream():
         answers = {}
         api_status = {}
@@ -86,7 +89,14 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                 messages.append({"role": role, "content": content})
 
         try:
-            async for event in stream_graph(question, turn=turn, max_turns=max_turns, history=history):
+            async for event in stream_graph(
+                question,
+                turn=turn,
+                max_turns=max_turns,
+                history=history,
+                model_overrides=model_overrides,
+                bypass_turn_limit=bypass_limits,
+            ):
                 event_type = event.get("type", "partial")
                 if event_type == "partial":
                     model = event.get("model")
@@ -158,6 +168,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                     "max_turns": max_turns,
                     "usage_limit": settings.daily_usage_limit,
                     "usage_remaining": usage_remaining,
+                    "model_overrides": model_overrides or {},
                 },
             }
             logger.info("요약 응답 전송 - 완료 모델 수: %d, 오류 수: %d", len(answers), len(errors))
