@@ -15,8 +15,85 @@ load_dotenv()
 
 FASTAPI_URL_FILE = Path(__file__).resolve().parents[2] / ".fastapi_url"
 DEFAULT_FASTAPI_BASE = FASTAPI_URL_FILE.read_text().strip() if FASTAPI_URL_FILE.exists() else ""
+MODEL_OPTIONS: dict[str, dict[str, Any]] = {
+    "openai": {
+        "label": "OpenAI",
+        "env": "MODEL_OPENAI",
+        "choices": ["gpt-4o-mini", "gpt-4o-nano", "gpt-4o"],
+    },
+    "gemini": {
+        "label": "Google Gemini",
+        "env": "MODEL_GEMINI",
+        "choices": ["gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-pro"],
+    },
+    "anthropic": {
+        "label": "Anthropic Claude",
+        "env": "MODEL_ANTHROPIC",
+        "choices": ["claude-haiku-4-5-20251001", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229"],
+    },
+    "upstage": {
+        "label": "Upstage Solar",
+        "env": "MODEL_UPSTAGE",
+        "choices": ["solar-mini", "solar-pro", "solar-1-mini-chat"],
+    },
+    "perplexity": {
+        "label": "Perplexity Sonar",
+        "env": "MODEL_PERPLEXITY",
+        "choices": ["sonar", "sonar-pro", "sonar-medium-online"],
+    },
+    "mistral": {
+        "label": "Mistral",
+        "env": "MODEL_MISTRAL",
+        "choices": ["mistral-large-latest", "mistral-large-2407", "mistral-small-latest"],
+    },
+    "groq": {
+        "label": "Groq",
+        "env": "MODEL_GROQ",
+        "choices": ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"],
+    },
+    "cohere": {
+        "label": "Cohere",
+        "env": "MODEL_COHERE",
+        "choices": ["command-r-plus", "command-r", "command-r7b"],
+    },
+}
 
 st.set_page_config(page_title="Compare-AI", page_icon="🤖", layout="wide")
+
+
+def _default_model(provider: str) -> str:
+    meta = MODEL_OPTIONS[provider]
+    env_value = os.getenv(meta["env"])
+    if env_value:
+        return env_value
+    return meta["choices"][0]
+
+
+def _ensure_model_selections() -> None:
+    defaults = {key: _default_model(key) for key in MODEL_OPTIONS}
+    selections = st.session_state.get("model_selections") or {}
+    merged = {}
+    for key, default in defaults.items():
+        merged[key] = selections.get(key, default)
+    st.session_state["model_selections"] = merged
+
+
+def _render_model_selector() -> None:
+    _ensure_model_selections()
+    st.subheader("모델 선택")
+    for key, meta in MODEL_OPTIONS.items():
+        options = list(meta["choices"])
+        current = st.session_state["model_selections"].get(key, _default_model(key))
+        if current not in options:
+            options = [current] + options
+        index = options.index(current) if current in options else 0
+        selection = st.selectbox(
+            f"{meta['label']} 모델",
+            options,
+            index=index,
+            key=f"model_select_{key}",
+        )
+        st.session_state["model_selections"][key] = selection
 
 
 def _load_base_url() -> str:
@@ -31,11 +108,6 @@ def _load_base_url() -> str:
     return saved
 
 
-def _get_admin_token() -> str:
-    # 환경변수에 있어도 UI에 노출되지 않도록 세션 값만 사용
-    return st.session_state.get("admin_token", "")
-
-
 def _get_usage_limit() -> str:
     return os.getenv("DAILY_USAGE_LIMIT") or "3"
 
@@ -45,10 +117,6 @@ def _usage_limit_int() -> int:
         return int(_get_usage_limit())
     except Exception:
         return 3
-
-
-def _get_admin_env_token() -> str:
-    return os.getenv("ADMIN_BYPASS_TOKEN", "") or st.secrets.get("ADMIN_BYPASS_TOKEN", "")
 
 
 def _sync_usage_from_headers(resp: requests.Response) -> None:
@@ -85,12 +153,15 @@ def _build_history_payload(chat_log: list[dict[str, Any]]) -> list[dict[str, str
     return history_payload
 
 
-def _update_usage_after_response(resp: requests.Response, *, use_admin_bypass: bool) -> None:
+def _update_usage_after_response(resp: requests.Response, *, admin_mode: bool) -> None:
     """응답 이후 사용량 카운터를 갱신한다."""
 
+    if admin_mode:
+        st.session_state["usage_remaining"] = None
+        return
     if resp.status_code == 429:
         st.session_state["usage_remaining"] = 0
-    elif resp.ok and not use_admin_bypass:
+    elif resp.ok:
         if "X-Usage-Remaining" not in resp.headers:
             new_value = max(0, st.session_state.get("usage_remaining", _usage_limit_int()) - 1)
             st.session_state["usage_remaining"] = new_value
@@ -278,18 +349,25 @@ def _handle_logout() -> None:
     st.session_state.pop("auth_token", None)
     st.session_state.pop("auth_user", None)
     st.session_state.pop("usage_remaining", None)
+    st.session_state.pop("usage_bypass", None)
+    st.session_state.pop("usage_fetched", None)
     st.session_state.pop("chat_log", None)
-    st.session_state.pop("use_admin_bypass", None)
-    st.session_state.pop("admin_token", None)
     st.rerun()
 
 
 def _send_question(
-    question: str, ask_url: str, headers: dict[str, str], turn_value: int, history_payload: list[dict[str, str]]
+    question: str,
+    ask_url: str,
+    headers: dict[str, str],
+    turn_value: int,
+    history_payload: list[dict[str, str]],
+    model_overrides: dict[str, str] | None = None,
 ) -> None:
     """질문을 전송하고 응답을 세션에 반영한다."""
 
-    payload = {"question": question, "turn": turn_value, "history": history_payload}
+    payload: dict[str, Any] = {"question": question, "turn": turn_value, "history": history_payload}
+    if model_overrides:
+        payload["models"] = {k: v for k, v in model_overrides.items() if v}
     resp = requests.post(ask_url, headers=headers, json=payload, stream=True, timeout=60)
     _sync_usage_from_headers(resp)
 
@@ -371,13 +449,13 @@ def _send_question(
             if usage_remaining is not None:
                 st.session_state["usage_remaining"] = usage_remaining
             _append_chat_log_entry(question, answers_acc, sources_acc, events_acc)
-            _update_usage_after_response(resp, use_admin_bypass=st.session_state.get("use_admin_bypass"))
+            _update_usage_after_response(resp, admin_mode=st.session_state.get("usage_bypass"))
             st.rerun()
             return
 
     # 요약이 안 왔을 때도 기록만 남김
     _append_chat_log_entry(question, answers_acc, sources_acc, events_acc)
-    _update_usage_after_response(resp, use_admin_bypass=st.session_state.get("use_admin_bypass"))
+    _update_usage_after_response(resp, admin_mode=st.session_state.get("usage_bypass"))
     st.rerun()
 
 
@@ -393,12 +471,7 @@ def main() -> None:
             st.error("FASTAPI_URL 환경변수나 .fastapi_url 파일로 백엔드 주소를 설정하세요.")
             st.stop()
         _render_connection_status(base_url)
-
-        st.subheader("관리자 우회 토큰 (선택)")
-        admin_token = st.text_input("x-admin-bypass", value=_get_admin_token(), type="password")
-        st.session_state["admin_token"] = admin_token
-        use_admin = st.checkbox("우회 토큰 사용", value=False, help="체크 시 인증/레이트리밋 우회")
-        st.session_state["use_admin_bypass"] = use_admin
+        _render_model_selector()
 
     ask_url = f"{base_url}/api/ask" if base_url else ""
 
@@ -410,11 +483,11 @@ def main() -> None:
     st.header("대화")
     if "usage_remaining" not in st.session_state:
         st.session_state["usage_remaining"] = _usage_limit_int()
+    if "usage_bypass" not in st.session_state:
+        st.session_state["usage_bypass"] = False
     if "chat_log" not in st.session_state:
         st.session_state["chat_log"] = []
     # 우회 토글이 남아있지 않도록 기본값 보정
-    if "use_admin_bypass" not in st.session_state:
-        st.session_state["use_admin_bypass"] = False
     # 로그인 후 최초 1회 사용량 조회
     if st.session_state.get("auth_token") and "usage_fetched" not in st.session_state:
         usage_url = f"{base_url}/usage"
@@ -423,18 +496,24 @@ def main() -> None:
             data = resp.json()
             if resp.ok:
                 remaining_val = data.get("remaining")
-                if remaining_val is None and data.get("bypass"):
-                    st.session_state["usage_remaining"] = _usage_limit_int()
+                if data.get("bypass"):
+                    st.session_state["usage_remaining"] = None
+                    st.session_state["usage_bypass"] = True
                 elif isinstance(remaining_val, int):
                     st.session_state["usage_remaining"] = remaining_val
+                    st.session_state["usage_bypass"] = False
             st.session_state["usage_fetched"] = True
         except Exception:
             st.session_state["usage_fetched"] = True
     if user := st.session_state.get("auth_user"):
         st.caption(f"로그인됨: {user.get('email')}")
-    remaining = st.session_state.get("usage_remaining", _usage_limit_int())
-    if remaining == 0:
-        st.error("남은 일일 사용 횟수: **0회** (관리자 우회 시 제한 없음)")
+    if st.session_state.get("usage_bypass"):
+        st.caption("관리자 권한 활성화 (일일 제한 없음)")
+    remaining = st.session_state.get("usage_remaining")
+    if remaining is None:
+        st.success("남은 일일 사용 횟수: 무제한 (관리자 모드)")
+    elif remaining == 0:
+        st.error("남은 일일 사용 횟수: **0회** (관리자 우회 필요)")
     else:
         st.info(f"남은 일일 사용 횟수: **{remaining}회** (관리자 우회 시 제한 없음)")
     if st.button("로그아웃"):
@@ -452,24 +531,12 @@ def main() -> None:
         if token := st.session_state.get("auth_token"):
             headers["Authorization"] = token
         history_payload = _build_history_payload(st.session_state.get("chat_log", []))
+        model_overrides = st.session_state.get("model_selections")
         turn_value = len(st.session_state.get("chat_log", [])) + 1
 
-        # 관리자 우회 토큰 검증: 환경/secret에 설정된 값과 일치할 때만 헤더 추가
-        admin_env = _get_admin_env_token()
-        admin_input = st.session_state.get("admin_token")
-        allow_admin = False
-        if st.session_state.get("use_admin_bypass"):
-            if admin_env and admin_input and admin_input == admin_env:
-                allow_admin = True
-            elif admin_input:
-                st.warning("관리자 우회 토큰이 일치하지 않아 일반 요청으로 진행합니다.")
-            elif not admin_env:
-                st.warning("서버에 관리자 우회 토큰이 설정되지 않아 우회할 수 없습니다.")
-        if allow_admin:
-            headers["x-admin-bypass"] = admin_input
         with st.spinner("모델 비교 중..."):
             try:
-                _send_question(question, ask_url, headers, turn_value, history_payload)
+                _send_question(question, ask_url, headers, turn_value, history_payload, model_overrides=model_overrides)
             except Exception as exc:  # pragma: no cover - UI 예외
                 st.error(f"요청 실패: {exc}")
 
