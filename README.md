@@ -75,6 +75,14 @@ python main.py
 - **FastAPI**: http://127.0.0.1:8000 (`APP_MODE=api`로 설정하면 FastAPI만 단독 실행)
 - **Streamlit**: http://127.0.0.1:8501
 
+### 4. 테스트
+
+```bash
+pytest -q
+```
+
+CI(GitHub Actions)는 push/PR 시 Python 3.11 환경에서 `pip install -r requirements.txt && pytest -q`를 자동 수행합니다.
+
 ## 📁 프로젝트 구조
 
 ```

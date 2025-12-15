@@ -1,4 +1,4 @@
-﻿# 문서 개요 (업데이트: 2025-12-08, FastAPI `/docs` 반영)
+﻿# 문서 개요 (업데이트: 2025-12-15, FastAPI `/docs` 반영)
 
 | 구분 | 설명 | 링크 |
 | --- | --- | --- |
@@ -7,5 +7,5 @@
 | Roadmap | 중기 계획 | [development/roadmap-2025.md](development/roadmap-2025.md) |
 
 ## Quick Links
-- 최신 changelog: [2025-12-08](changelog/2025-12-08.md)
-- 최신 dev log: [2025-12-08](development/2025-12-08.md)
+- 최신 changelog: [2025-12-15](changelog/2025-12-15.md)
+- 최신 dev log: [2025-12-15](development/2025-12-15.md)
