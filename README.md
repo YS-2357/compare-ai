@@ -1,7 +1,7 @@
 # Compare-AI (FastAPI + Streamlit 단일 레포)
 
 FastAPI 백엔드와 Streamlit UI가 한 레포(`compare-ai`)에 함께 있으며, 단일 커맨드로 로컬 실행합니다.  
-> **최종 업데이트: 2025-12-08** — FastAPI `/docs` 예시/설명 보강, 모델 오버라이드/관리자 우회 문서화, Render 단일 레포 배포
+> **최종 업데이트: 2025-12-18** — 프롬프트 평가 스트리밍(`/api/prompt-eval`) 및 UI 탭 추가, 평가 결과 JSON 렌더링/에러 내성 개선
 
 ## 📋 프로젝트 개요
 
