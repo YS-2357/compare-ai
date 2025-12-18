@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.api.deps import AuthenticatedUser, enforce_daily_limit, get_current_user, get_settings
-from app.api.schemas import AskRequest
+from app.api.schemas import AskRequest, PromptEvalRequest
 from app.logger import get_logger
 from app.services import stream_graph
 from app.services.langgraph import DEFAULT_MAX_TURNS
+from app.services.prompt_eval import stream_prompt_eval
 from app.rate_limit.router import router as usage_router
 
 router = APIRouter()
@@ -199,6 +200,59 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     if usage_remaining is not None:
         headers["X-Usage-Limit"] = str(settings.daily_usage_limit)
         headers["X-Usage-Remaining"] = str(usage_remaining)
+    return StreamingResponse(response_stream(), media_type="application/json", headers=headers)
+
+
+@router.post(
+    "/api/prompt-eval",
+    responses={
+        200: {
+            "description": "NDJSON 스트림 (partial/summary) 반환",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "type": "summary",
+                        "result": {
+                            "scores": [{"model": "OpenAI", "score": 9.5, "rank": 1, "rationale": "..."}],
+                            "score_table": "| Model | Score | Rank | Rationale | ...",
+                        },
+                    }
+                }
+            },
+        }
+    },
+    summary="프롬프트 평가 스트리밍 질의",
+)
+async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depends(get_current_user)):
+    """모델별 프롬프트를 적용한 후 블라인드 평가를 수행한다."""
+
+    settings = get_settings()
+    question = payload.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="질문을 입력해주세요.")
+
+    usage_remaining: int | None = None
+    if not user.get("bypass"):
+        usage_remaining = await enforce_daily_limit(user["sub"], settings.daily_usage_limit)
+
+    async def response_stream():
+        try:
+            async for event in stream_prompt_eval(
+                question,
+                prompt=payload.prompt,
+                active_models=payload.models,
+            ):
+                yield json.dumps(event, ensure_ascii=False) + "\n"
+        except Exception as exc:  # pragma: no cover
+            logger.error("프롬프트 평가 스트림 오류: %s", exc)
+            error_event = {"type": "error", "message": str(exc), "node": None, "model": None}
+            yield json.dumps(error_event, ensure_ascii=False) + "\n"
+
+    headers = {}
+    if usage_remaining is not None:
+        headers["X-Usage-Limit"] = str(settings.daily_usage_limit)
+        headers["X-Usage-Remaining"] = str(usage_remaining)
+
     return StreamingResponse(response_stream(), media_type="application/json", headers=headers)
 
 
