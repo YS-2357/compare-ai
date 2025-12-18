@@ -115,9 +115,12 @@ async def _call_model_common(
     except Exception as exc:
         status = build_status_from_error(exc)
         logger.warning("%s 호출 실패: %s", label, exc)
+        error_msg = f"응답 실패: {status.get('detail') or exc}"
         return GraphState(
             api_status={label: status},
-            model_messages={label: [format_response_message(f"{label} 오류", exc)]},
+            model_messages={label: [format_response_message(label, error_msg)]},
+            raw_responses={label: error_msg},
+            raw_sources={label: None},
         )
 
 

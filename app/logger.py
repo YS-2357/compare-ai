@@ -13,12 +13,42 @@ LEVEL_EMOJI: dict[int, str] = {
 }
 
 
+class _Colors:
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    TIME = "\033[90m"
+    NAME = "\033[94m"
+    DEBUG = "\033[36m"  # Cyan
+    INFO = "\033[92m"  # Green
+    WARNING = "\033[93m"  # Yellow
+    ERROR = "\033[91m"  # Red
+    CRITICAL = "\033[95m"  # Magenta
+
+
+LEVEL_COLORS: dict[int, str] = {
+    logging.DEBUG: _Colors.DEBUG,
+    logging.INFO: _Colors.INFO,
+    logging.WARNING: _Colors.WARNING,
+    logging.ERROR: _Colors.ERROR,
+    logging.CRITICAL: _Colors.CRITICAL,
+}
+
+
 class EmojiFormatter(logging.Formatter):
     """로그 레코드에 로그 레벨에 따른 이모지를 추가한다."""
 
     def format(self, record: logging.LogRecord) -> str:  # noqa: D401
-        record.emoji = LEVEL_EMOJI.get(record.levelno, "")  # type: ignore[attr-defined]
-        return super().format(record)
+        emoji = LEVEL_EMOJI.get(record.levelno, "")
+        level_color = LEVEL_COLORS.get(record.levelno, _Colors.RESET)
+        time_str = self.formatTime(record, self.datefmt)
+        level_name = f"{_Colors.BOLD}{level_color}{record.levelname}{_Colors.RESET}"
+        logger_name = f"{_Colors.NAME}{record.name}{_Colors.RESET}"
+        message = record.getMessage()
+        # 예외가 있으면 기본 포맷터가 붙이도록 그대로 둠
+        formatted = f"{emoji} [{level_name}] {_Colors.TIME}{time_str}{_Colors.RESET} {logger_name} - {message}"
+        if record.exc_info:
+            formatted += "\n" + self.formatException(record.exc_info)
+        return formatted
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -29,10 +59,7 @@ def get_logger(name: str) -> logging.Logger:
 
     if not logger.handlers:
         handler = logging.StreamHandler()
-        formatter = EmojiFormatter(
-            "%(emoji)s [%(levelname)s | %(asctime)s | %(name)s] - %(message)s",
-            datefmt="%H:%M:%S",
-        )
+        formatter = EmojiFormatter(datefmt="%H:%M:%S")
         handler.setFormatter(formatter)
         logger.addHandler(handler)
         logger.propagate = False
