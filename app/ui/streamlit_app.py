@@ -218,6 +218,33 @@ def _status_to_emoji(status_val: Any) -> str:
     return "✅"
 
 
+def _is_error_status(status_val: Any) -> bool:
+    """상태 코드/문자열이 오류인지 판별한다."""
+
+    code = None
+    if isinstance(status_val, dict):
+        code = status_val.get("status")
+    elif isinstance(status_val, (int, str)):
+        code = status_val
+
+    if isinstance(code, str):
+        lower = code.lower()
+        if lower.isdigit():
+            code = int(lower)
+        elif "error" in lower or "fail" in lower or "exception" in lower:
+            return True
+        elif "timeout" in lower or "rate" in lower:
+            return True
+
+    try:
+        code_int = int(code) if code is not None else None
+    except Exception:
+        code_int = None
+    if code_int is None:
+        return False
+    return code_int >= 400
+
+
 def _render_auth_section(base_url: str) -> None:
     """로그인/회원가입 UI를 렌더링한다."""
 
@@ -391,14 +418,17 @@ def _send_question(
             model = parsed.get("model")
             if not model:
                 continue
-            answers_acc[model] = parsed.get("answer")
-            sources_acc[model] = parsed.get("source")
+            status = parsed.get("status") or {}
+            answer = parsed.get("answer")
+            source = parsed.get("source")
+            answers_acc[model] = answer
+            sources_acc[model] = source
             events_acc.append(
                 {
                     "model": model,
-                    "answer": parsed.get("answer"),
-                    "source": parsed.get("source"),
-                    "status": parsed.get("status"),
+                    "answer": answer,
+                    "source": source,
+                    "status": status,
                     "elapsed_ms": parsed.get("elapsed_ms"),
                 }
             )
@@ -406,13 +436,15 @@ def _send_question(
                 placeholders[model] = st.empty()
             slot = placeholders[model]
             with slot.container():
-                status = parsed.get("status") or {}
                 elapsed = parsed.get("elapsed_ms")
                 elapsed_txt = f"{elapsed/1000:.1f}s" if elapsed is not None else "-"
                 emoji = _status_to_emoji(status)
                 st.markdown(f"{emoji} **{model}** ⏱️ {elapsed_txt}")
-                st.write(parsed.get("answer"))
-                src = parsed.get("source")
+                if _is_error_status(status):
+                    st.error(answer or "응답이 실패했습니다.")
+                else:
+                    st.write(answer)
+                src = source
                 if model == "Perplexity":
                     st.caption(f"출처: {src or '제공되지 않음'}")
                 elif src:
@@ -459,6 +491,116 @@ def _send_question(
     st.rerun()
 
 
+def _send_prompt_eval(
+    question: str,
+    eval_url: str,
+    headers: dict[str, str],
+    prompt_payload: str | None,
+    active_models: list[str],
+) -> None:
+    """프롬프트 평가 요청을 전송하고 스트림 응답을 표시한다."""
+
+    payload: dict[str, Any] = {"question": question, "models": active_models}
+    if prompt_payload:
+        payload["prompt"] = prompt_payload
+
+    resp = requests.post(eval_url, headers=headers, json=payload, stream=True, timeout=120)
+    placeholders: dict[str, Any] = {}
+    events_acc: list[dict[str, Any]] = []
+    summary_data: dict[str, Any] | None = None
+
+    for line in resp.iter_lines():
+        if not line:
+            continue
+        try:
+            parsed = json.loads(line.decode("utf-8"))
+        except Exception:
+            parsed = line
+        if not isinstance(parsed, dict):
+            continue
+        event_type = parsed.get("type", "partial")
+        if event_type == "partial":
+            model = parsed.get("model")
+            if not model:
+                continue
+            status = parsed.get("status") or {}
+            answer = parsed.get("answer")
+            elapsed = parsed.get("elapsed_ms")
+            elapsed_txt = f"{elapsed/1000:.1f}s" if elapsed is not None else "-"
+            emoji = _status_to_emoji(status)
+            events_acc.append(
+                {
+                    "model": model,
+                    "answer": answer,
+                    "source": None,
+                    "status": status,
+                    "elapsed_ms": elapsed,
+                }
+            )
+            if model not in placeholders:
+                placeholders[model] = st.empty()
+            with placeholders[model].container():
+                st.markdown(f"{emoji} **{model}** ⏱️ {elapsed_txt}")
+                if _is_error_status(status):
+                    st.error(answer or "응답이 실패했습니다.")
+                else:
+                    st.write(answer)
+        elif event_type == "error":
+            message = parsed.get("message") or "에러가 발생했습니다."
+            st.error(message)
+            events_acc.append(
+                {
+                    "model": parsed.get("model") or "unknown",
+                    "answer": message,
+                    "source": None,
+                    "status": parsed.get("status") or "error",
+                    "elapsed_ms": parsed.get("elapsed_ms"),
+                }
+            )
+        elif event_type == "summary":
+            summary_data = parsed.get("result") or {}
+            scores = summary_data.get("scores") or []
+            avg_score = summary_data.get("avg_score")
+            st.subheader("🏁 평가 결과")
+            if avg_score is not None:
+                st.markdown(f"✨ **평균 점수:** {avg_score}")
+            if scores:
+                st.dataframe(scores, use_container_width=True)
+            evaluations = summary_data.get("evaluations") or []
+            if evaluations:
+                with st.expander("🧠 평가자별 원본 점수/근거 보기", expanded=False):
+                    eval_rows = []
+                    for ev in evaluations:
+                        status = ev.get("status") or {}
+                        eval_rows.append(
+                            {
+                                "evaluator": ev.get("evaluator"),
+                                "status": status.get("status"),
+                                "detail": status.get("detail"),
+                                "model": status.get("model"),
+                                "elapsed_ms": ev.get("elapsed_ms"),
+                                "scores_count": len(ev.get("scores") or []),
+                            }
+                        )
+                    if eval_rows:
+                        st.dataframe(eval_rows, use_container_width=True)
+                    st.caption("원본 응답/점수 JSON")
+                    st.json(evaluations)
+        elif event_type == "usage":
+            # 사용량 메타는 표시만 건너뜀
+            continue
+
+    if summary_data:
+        # 간단한 로그 저장
+        st.session_state.setdefault("prompt_eval_log", []).append(
+            {
+                "question": question,
+                "events": events_acc,
+                "summary": summary_data,
+            }
+        )
+
+
 def main() -> None:
     st.title("Compare-AI")
     st.caption("여러 LLM 중 내 질문에 가장 잘 답하는 모델을 찾아보세요.")
@@ -474,20 +616,22 @@ def main() -> None:
         _render_model_selector()
 
     ask_url = f"{base_url}/api/ask" if base_url else ""
+    eval_url = f"{base_url}/api/prompt-eval" if base_url else ""
 
     # 인증/회원가입 뷰
     if not st.session_state.get("auth_token"):
         _render_auth_section(base_url)
 
-    # 로그인 후 질문 뷰 (챗봇 형식)
-    st.header("대화")
+    # 세션 기본값
     if "usage_remaining" not in st.session_state:
         st.session_state["usage_remaining"] = _usage_limit_int()
     if "usage_bypass" not in st.session_state:
         st.session_state["usage_bypass"] = False
     if "chat_log" not in st.session_state:
         st.session_state["chat_log"] = []
-    # 우회 토글이 남아있지 않도록 기본값 보정
+    if "prompt_eval_log" not in st.session_state:
+        st.session_state["prompt_eval_log"] = []
+
     # 로그인 후 최초 1회 사용량 조회
     if st.session_state.get("auth_token") and "usage_fetched" not in st.session_state:
         usage_url = f"{base_url}/usage"
@@ -519,26 +663,66 @@ def main() -> None:
     if st.button("로그아웃"):
         _handle_logout()
 
-    _render_chat_history(st.session_state["chat_log"])
+    tab_compare, tab_prompt = st.tabs(["모델 비교", "프롬프트 평가"])
 
-    question = st.chat_input("질문을 입력하세요...")
+    with tab_compare:
+        st.header("대화")
+        _render_chat_history(st.session_state["chat_log"])
 
-    if question:
-        if not ask_url:
+        question = st.chat_input("질문을 입력하세요...")
+
+        if question:
+            if not ask_url:
+                st.error("FastAPI Base URL을 설정해주세요.")
+                return
+            headers = {"Content-Type": "application/json"}
+            if token := st.session_state.get("auth_token"):
+                headers["Authorization"] = token
+            history_payload = _build_history_payload(st.session_state.get("chat_log", []))
+            model_overrides = st.session_state.get("model_selections")
+            turn_value = len(st.session_state.get("chat_log", [])) + 1
+
+            with st.spinner("모델 비교 중..."):
+                try:
+                    _send_question(question, ask_url, headers, turn_value, history_payload, model_overrides=model_overrides)
+                except Exception as exc:  # pragma: no cover - UI 예외
+                    st.error(f"요청 실패: {exc}")
+
+    with tab_prompt:
+        st.header("프롬프트 평가")
+        st.write("모델별 프롬프트를 다르게 적용해 응답을 받고, 고정 평가모델로 블라인드 평가합니다.")
+        if not eval_url:
             st.error("FastAPI Base URL을 설정해주세요.")
             return
         headers = {"Content-Type": "application/json"}
         if token := st.session_state.get("auth_token"):
             headers["Authorization"] = token
-        history_payload = _build_history_payload(st.session_state.get("chat_log", []))
-        model_overrides = st.session_state.get("model_selections")
-        turn_value = len(st.session_state.get("chat_log", [])) + 1
 
-        with st.spinner("모델 비교 중..."):
-            try:
-                _send_question(question, ask_url, headers, turn_value, history_payload, model_overrides=model_overrides)
-            except Exception as exc:  # pragma: no cover - UI 예외
-                st.error(f"요청 실패: {exc}")
+        active_models = st.multiselect(
+            "평가할 모델 선택",
+            options=list(MODEL_OPTIONS.keys()),
+            default=list(MODEL_OPTIONS.keys()),
+        )
+        question_eval = st.text_area("질문", placeholder="비교할 질문을 입력하세요", height=100)
+
+        default_prompt = "[Question]\\n{question}\\n\\n답변은 한국어로 작성하세요."
+        st.markdown("공통 프롬프트 (미입력 시 기본값 사용)")
+        prompt_val = st.text_area(
+            "프롬프트",
+            key="prompt_common",
+            value=default_prompt,
+            placeholder="예: [Question]\\n{question}\\n\\n답변은 한국어로 작성하세요.",
+            height=120,
+        )
+
+        if st.button("프롬프트 평가 실행", disabled=not question_eval or not active_models):
+            with st.spinner("프롬프트 평가 실행 중..."):
+                try:
+                    active_labels = [MODEL_OPTIONS[k]["label"] for k in active_models if k in MODEL_OPTIONS]
+                    prompt_payload = prompt_val.strip() or None
+                    _send_prompt_eval(question_eval, eval_url, headers, prompt_payload, active_labels)
+                except Exception as exc:  # pragma: no cover
+                    st.error(f"요청 실패: {exc}")
 
 
 if __name__ == "__main__":
