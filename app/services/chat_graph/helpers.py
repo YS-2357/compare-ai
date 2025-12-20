@@ -24,7 +24,7 @@ class Answer(BaseModel):
     source: str | None = Field(default=None, description="출처 URL 또는 참고 정보(옵션)")
 
 
-def _message_to_text(message: Any) -> str | None:
+def message_to_text(message: Any) -> str | None:
     """여러 형태의 메시지를 role: content 문자열로 변환한다."""
 
     if isinstance(message, (list, tuple)) and len(message) == 2:
@@ -47,7 +47,7 @@ def _message_to_text(message: Any) -> str | None:
     return None
 
 
-def _build_prompt() -> ChatPromptTemplate:
+def build_chat_prompt() -> ChatPromptTemplate:
     parser = PydanticOutputParser(pydantic_object=Answer)
     instructions = parser.get_format_instructions()
     system = (
@@ -64,7 +64,7 @@ def _build_prompt() -> ChatPromptTemplate:
     ).partial(format_instructions=instructions)
 
 
-def _render_history_for_model(state: Any, label: str, max_messages: int = 10) -> str:
+def render_chat_history(state: Any, label: str, max_messages: int = 10) -> str:
     """모델별로 최근 히스토리와 요약을 합쳐 프롬프트용 문자열을 만든다."""
 
     user_msgs = state.get("user_messages") or []
@@ -110,7 +110,7 @@ def _render_history_for_model(state: Any, label: str, max_messages: int = 10) ->
     return history_text
 
 
-def _build_prompt_input(state: Any, label: str) -> str:
+def build_chat_prompt_input(state: Any, label: str) -> str:
     """
     대화 이력과 현재 질문을 분리해 전달한다.
     - history: 모델별 인터리브된 최근 히스토리
@@ -118,7 +118,7 @@ def _build_prompt_input(state: Any, label: str) -> str:
     """
 
     max_context = settings_cache.max_context_messages
-    history_text = _render_history_for_model(state, label, max_messages=max_context)
+    history_text = render_chat_history(state, label, max_messages=max_context)
     user_msgs = state.get("user_messages") or []
     current_question = ""
     if user_msgs:
@@ -156,4 +156,4 @@ def _build_prompt_input(state: Any, label: str) -> str:
     return prompt
 
 
-__all__ = ["Answer", "_message_to_text", "_build_prompt", "_render_history_for_model", "_build_prompt_input"]
+__all__ = ["Answer", "message_to_text", "build_chat_prompt", "render_chat_history", "build_chat_prompt_input"]

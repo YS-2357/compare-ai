@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 settings_cache = get_settings()
 
 
-def build_workflow():
+def build_chat_workflow():
     """StateGraph를 구성하고 LangGraph 앱으로 컴파일한다."""
 
     logger.debug("LangGraph 워크플로우 컴파일 시작")
@@ -74,7 +74,7 @@ def get_app():
 
     global _app
     if _app is None:
-        _app = build_workflow()
+        _app = build_chat_workflow()
     return _app
 
 
@@ -91,7 +91,7 @@ def _normalize_messages(messages: list | None) -> list[dict[str, str]]:
     return normalized
 
 
-async def stream_graph(
+async def stream_chat(
     question: str,
     *,
     turn: int = 1,
@@ -200,4 +200,4 @@ async def stream_graph(
         }
 
 
-__all__ = ["stream_graph", "DEFAULT_MAX_TURNS", "build_workflow"]
+__all__ = ["stream_chat", "DEFAULT_MAX_TURNS", "build_chat_workflow"]

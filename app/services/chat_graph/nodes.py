@@ -15,7 +15,7 @@ from langgraph.types import Send
 from app.config import get_settings
 from app.logger import get_logger
 from .errors import build_status_from_error, build_status_from_response
-from .helpers import Answer, _build_prompt, _build_prompt_input, _message_to_text, _render_history_for_model
+from .helpers import Answer, build_chat_prompt, build_chat_prompt_input, message_to_text, render_chat_history
 
 from .llm_registry import (
     ChatAnthropic,
@@ -95,7 +95,7 @@ async def _call_model_common(
 ) -> GraphState:
     """모델 호출 공통 루틴."""
 
-    prompt_input = _build_prompt_input(state, label)
+    prompt_input = build_chat_prompt_input(state, label)
     logger.debug("%s 호출 시작", label)
     try:
         llm = llm_factory()
@@ -143,7 +143,7 @@ async def _maybe_summarize_history(
     if should_summarize:
         text_lines = []
         for msg in recent_messages:
-            msg_text = _message_to_text(msg)
+            msg_text = message_to_text(msg)
             if msg_text:
                 text_lines.append(msg_text)
         history_text = "\n".join(text_lines)
@@ -162,13 +162,13 @@ async def _maybe_summarize_history(
     return recent_messages, summaries
 
 
-def _build_prompt_input(state: GraphState, label: str) -> str:
+def build_chat_prompt_input(state: GraphState, label: str) -> str:
     """
     대화 이력과 현재 질문을 분리해 전달한다.
     - history: 모델별 인터리브된 최근 히스토리
     - question: 최근 user 메시지(현재 질문)
     """
-    history_text = _render_history_for_model(state, label, max_messages=MAX_CONTEXT_MESSAGES)
+    history_text = render_chat_history(state, label, max_messages=MAX_CONTEXT_MESSAGES)
     current_question = ""
     user_messages = state.get("user_messages") or []
     for message in reversed(user_messages):
@@ -232,7 +232,7 @@ async def _invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, 
     """LLM을 한 번 호출한 뒤 파서를 적용하고, 실패하면 원문을 그대로 사용한다."""
 
     parser = PydanticOutputParser(pydantic_object=Answer)
-    prompt = _build_prompt()
+    prompt = build_chat_prompt()
     chain = prompt | llm
     response = await chain.ainvoke({"question": prompt_input})
     status = build_status_from_response(response)

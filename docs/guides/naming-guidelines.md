@@ -8,6 +8,7 @@
 - shared에는 공통 유틸만 배치: `model_aliases.py`, `errors.py`, `prompt_utils.py`, `parsers.py` 등.
 
 ## 함수/파일 네이밍
+- 내부용(모듈 안에서만 사용) 헬퍼는 앞에 `_`를 붙인다. 공개해서 import할 함수는 `_` 없이 명시적 이름을 사용.
 - 반환값 접두사: `get/build/create/format`(값), `is/has/should`(bool), `run/execute/send/save/update`(부수효과), `stream_*`(스트리밍).
 - 프롬프트: `build_*_prompt`, 이스케이프/포맷은 `escape_*`/`render_*`.
 - 파서: `parse_*` + fallback은 `parse_*_safe` 또는 `*_or_default`.
