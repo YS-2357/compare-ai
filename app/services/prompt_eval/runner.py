@@ -28,36 +28,10 @@ from app.services.chat_graph.llm_registry import (
     ChatPerplexity,
     ChatUpstage,
 )
+from app.services.shared import LATEST_EVAL_MODELS, MODEL_ALIASES
 
 logger = get_logger(__name__)
 settings_cache = get_settings()
-
-# 평가 모델: 회사별 최신 모델 이름 우선, 없으면 settings 기본값
-LATEST_EVAL_MODELS: dict[str, str] = {
-    "OpenAI": "gpt-5-mini",
-    "Gemini": "gemini-3-flash-preview",
-    "Anthropic": "claude-sonnet-4-5-20250929",
-    "Perplexity": "sonar",
-    "Upstage": "solar-mini",
-    "Mistral": "mistral-large-latest",
-    "Groq": "llama-3.3-70b-versatile",
-    "Cohere": "command-r-plus",
-}
-
-MODEL_ALIASES = {
-    "OpenAI": "OpenAI",
-    "Google Gemini": "Gemini",
-    "Gemini": "Gemini",
-    "Anthropic Claude": "Anthropic",
-    "Anthropic": "Anthropic",
-    "Perplexity Sonar": "Perplexity",
-    "Perplexity": "Perplexity",
-    "Upstage Solar": "Upstage",
-    "Upstage": "Upstage",
-    "Mistral": "Mistral",
-    "Groq": "Groq",
-    "Cohere": "Cohere",
-}
 
 
 class Score(BaseModel):
