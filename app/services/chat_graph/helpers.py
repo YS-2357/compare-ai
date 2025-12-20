@@ -89,11 +89,11 @@ def render_chat_history(state: Any, label: str, max_messages: int = 10) -> str:
     max_len = max(len(user_msgs), len(model_msgs))
     for idx in range(max_len):
         if idx < len(user_msgs):
-            msg_text = _message_to_text(user_msgs[idx])
+            msg_text = message_to_text(user_msgs[idx])
             if msg_text:
                 combined.append(msg_text)
         if idx < len(model_msgs):
-            msg_text = _message_to_text(model_msgs[idx])
+            msg_text = message_to_text(model_msgs[idx])
             if msg_text:
                 combined.append(msg_text)
 
