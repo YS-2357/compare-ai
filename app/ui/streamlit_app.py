@@ -586,25 +586,39 @@ def _send_prompt_eval(
             if avg_score is not None:
                 st.markdown(f"✨ **평균 점수:** {avg_score}")
             if scores:
-                st.dataframe(scores, use_container_width=True)
+                normalized_scores = []
+                for row in scores:
+                    status_val = row.get("status")
+                    status_str = ""
+                    if isinstance(status_val, dict):
+                        status_str = str(status_val.get("status") or status_val)
+                    elif status_val is not None:
+                        status_str = str(status_val)
+                    normalized_scores.append({**row, "status": status_str})
+                st.dataframe(normalized_scores, width="stretch")
             evaluations = summary_data.get("evaluations") or []
             if evaluations:
                 with st.expander("🧠 평가자별 원본 점수/근거 보기", expanded=False):
                     eval_rows = []
                     for ev in evaluations:
                         status = ev.get("status") or {}
+                        status_str = ""
+                        if isinstance(status, dict):
+                            status_str = str(status.get("status") or status)
+                        elif status is not None:
+                            status_str = str(status)
                         eval_rows.append(
                             {
                                 "evaluator": ev.get("evaluator"),
-                                "status": status.get("status"),
-                                "detail": status.get("detail"),
-                                "model": status.get("model"),
+                                "status": status_str,
+                                "detail": status.get("detail") if isinstance(status, dict) else "",
+                                "model": status.get("model") if isinstance(status, dict) else "",
                                 "elapsed_ms": ev.get("elapsed_ms"),
                                 "scores_count": len(ev.get("scores") or []),
                             }
                         )
                     if eval_rows:
-                        st.dataframe(eval_rows, use_container_width=True)
+                        st.dataframe(eval_rows, width="stretch")
                     st.caption("원본 응답/점수 JSON")
                     st.json(evaluations)
         elif event_type == "usage":
