@@ -392,12 +392,15 @@ async def stream_prompt_eval(
             }
 
         # 평가 단계
+        evaluation_tasks = [
+            asyncio.create_task(_evaluate_answers(question, results, evaluator_label))
+            for evaluator_label in models
+        ]
         evaluation_outputs: list[dict[str, Any]] = []
-        for evaluator_label in models:
-            try:
-                evaluation_outputs.append(await _evaluate_answers(question, results, evaluator_label))
-            except Exception as exc:
-                logger.warning("평가 호출 실패: evaluator=%s err=%s", evaluator_label, exc)
+        evaluation_results = await asyncio.gather(*evaluation_tasks, return_exceptions=True)
+        for evaluator_label, ev_res in zip(models, evaluation_results):
+            if isinstance(ev_res, Exception):
+                logger.warning("평가 호출 실패: evaluator=%s err=%s", evaluator_label, ev_res)
                 evaluation_outputs.append(
                     {
                         "evaluator": evaluator_label,
@@ -411,9 +414,11 @@ async def stream_prompt_eval(
                             }
                             for i, r in enumerate(results)
                         ],
-                        "status": {"status": "error", "detail": str(exc), "model": None},
+                        "status": {"status": "error", "detail": str(ev_res), "model": None},
                     }
                 )
+            else:
+                evaluation_outputs.append(ev_res)
 
         aggregated_scores = _aggregate_scores(results, evaluation_outputs)
         numeric_scores = [
