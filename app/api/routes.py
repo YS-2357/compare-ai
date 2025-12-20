@@ -100,7 +100,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
         completion_order: list[str] = []
         errors: list[dict[str, str | None]] = []
 
-        def extend_messages(new_messages: list[dict[str, str]] | None):
+        def _extend_messages(new_messages: list[dict[str, str]] | None):
             for message in new_messages or []:
                 role = str(message.get("role"))
                 content = str(message.get("content"))
@@ -135,7 +135,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                         if elapsed_ms is not None:
                             durations_ms[model] = int(elapsed_ms)
                         logger.debug("부분 응답 누적: %s", model)
-                    extend_messages(event.get("messages"))
+                    _extend_messages(event.get("messages"))
                 elif event_type == "error":
                     logger.warning(
                         "스트림 오류 이벤트 수신 (node=%s, model=%s): %s",
