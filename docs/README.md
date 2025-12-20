@@ -5,6 +5,7 @@
 | Changelog | 날짜별 변경 로그 | [changelog/README.md](changelog/README.md) |
 | Dev Log | 개발 일지 | [development/README.md](development/README.md) |
 | Roadmap | 중기 계획 | [development/roadmap-2025.md](development/roadmap-2025.md) |
+| Guides | 규칙/가이드 | [guides/naming-guidelines.md](guides/naming-guidelines.md) |
 
 ## Quick Links
 - 최신 changelog: [2025-12-18](changelog/2025-12-18.md)
