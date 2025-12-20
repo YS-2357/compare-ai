@@ -29,7 +29,15 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
     "anthropic": {
         "label": "Anthropic Claude",
         "env": "MODEL_ANTHROPIC",
-        "choices": ["claude-haiku-4-5-20251001", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229"],
+        "choices": [
+            "claude-opus-4-1",
+            "claude-opus-4",
+            "claude-sonnet-4",
+            "claude-3-7-sonnet-latest",
+            "claude-3-5-sonnet-latest",
+            "claude-3-5-haiku-latest",
+            "claude-3-haiku",
+        ],
     },
     "upstage": {
         "label": "Upstage Solar",
