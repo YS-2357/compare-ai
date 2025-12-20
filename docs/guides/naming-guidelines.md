@@ -20,7 +20,7 @@
 - 스트림 이벤트는 `partial`/`summary`/`error` 3종으로 제한, 필수 필드(`model`, `status`, `elapsed_ms`, 필요 시 `answers`/`evaluations`)를 유지.
 
 ## export 정책
-- 외부에 노출되는 진입점만 `__all__`/`__init__.py`에 export(`stream_graph`, `stream_prompt_eval` 등).
+- 외부에 노출되는 진입점만 `__all__`/`__init__.py`에 export(`stream_chat`, `stream_prompt_eval` 등).
 - 내부 유틸은 도메인 패키지 내부 import로 한정(shared 제외).
 
 ## 문서 관리

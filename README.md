@@ -97,7 +97,7 @@ compare-ai/
 │   │   └── schemas/               # ask.py, auth.py
 │   ├── auth/                      # Supabase 검증/클라이언트
 │   ├── rate_limit/                # Upstash 클라이언트/Depends
-│   ├── services/langgraph/        # LangGraph 워크플로우 분할
+│   ├── services/chat_graph/        # LangGraph 워크플로우 분할
 │   └── ui/                        # Streamlit UI
 ├── scripts/run_app.py             # FastAPI+Streamlit 실행 스크립트 (main.py에서 호출)
 ├── main.py                        # APP_MODE에 따라 api만 또는 둘 다 실행
