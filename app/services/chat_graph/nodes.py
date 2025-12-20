@@ -27,7 +27,7 @@ from .llm_registry import (
     ChatPerplexity,
     ChatUpstage,
 )
-from .summaries import _preview, _summarize_content
+from .summaries import preview_text, summarize_content
 
 logger = get_logger(__name__)
 settings_cache = get_settings()
@@ -52,7 +52,7 @@ def merge_model_messages(existing: dict | None, new: dict | None) -> dict:
     return merged
 
 
-def _resolve_model_name(state: GraphState, key: str, default: str) -> str:
+def resolve_model_name(state: GraphState, key: str, default: str) -> str:
     overrides = state.get("model_overrides") or {}
     override = overrides.get(key)
     return override or default
@@ -77,7 +77,7 @@ class GraphState(TypedDict, total=False):
     api_status: Annotated[dict[str, Any] | None, merge_dicts]
 
 
-def _default_active_models() -> list[str]:
+def default_active_models() -> list[str]:
     return list(NODE_CONFIG.keys())
 
 
@@ -86,7 +86,7 @@ def _model_label(node_name: str) -> str:
     return meta["label"] if meta else node_name
 
 
-async def _call_model_common(
+async def call_model_common(
     label: str,
     state: GraphState,
     llm_factory: Callable[[], Any],
@@ -99,9 +99,9 @@ async def _call_model_common(
     logger.debug("%s 호출 시작", label)
     try:
         llm = llm_factory()
-        content, source, status = await _invoke_parsed(llm, prompt_input, label)
+        content, source, status = await invoke_parsed(llm, prompt_input, label)
         msg_payload = message_transform(content, source) if message_transform else content
-        updated_msgs, summaries = await _maybe_summarize_history(
+        updated_msgs, summaries = await maybe_summarize_history(
             llm, state, label, [("assistant", msg_payload)], state.get("turn")
         )
         logger.info("%s 응답 완료", label)
@@ -124,7 +124,7 @@ async def _call_model_common(
         )
 
 
-async def _maybe_summarize_history(
+async def maybe_summarize_history(
     llm: Any, state: GraphState, label: str, new_messages: list, turn: int | None
 ) -> tuple[list, dict[str, str]]:
     """
@@ -156,7 +156,7 @@ async def _maybe_summarize_history(
             len(existing),
             len(recent_messages),
             len(summary),
-            _preview(summary),
+            preview_text(summary),
         )
     # 컨텍스트 부풀림을 막기 위해 최근 메시지만 유지
     return recent_messages, summaries
@@ -228,7 +228,7 @@ def _extract_source(extras: dict[str, Any] | None) -> str | None:
     return None
 
 
-async def _invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, str | None, dict[str, Any]]:
+async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, str | None, dict[str, Any]]:
     """LLM을 한 번 호출한 뒤 파서를 적용하고, 실패하면 원문을 그대로 사용한다."""
 
     parser = PydanticOutputParser(pydantic_object=Answer)
@@ -276,7 +276,7 @@ def init_question(state: GraphState) -> GraphState:
         preview_target = last_user[1]
     elif isinstance(last_user, dict):
         preview_target = last_user.get("content", "")
-    logger.debug("질문 초기화: %s", _preview(preview_target))
+    logger.debug("질문 초기화: %s", preview_text(preview_target))
     return GraphState(
         max_turns=max_turns,
         turn=turn_value,
@@ -291,7 +291,7 @@ def init_question(state: GraphState) -> GraphState:
     )
 
 
-async def _ainvoke(llm: Any, question: str) -> Any:
+async def invoke_llm_async(llm: Any, question: str) -> Any:
     """주어진 LLM에서 비동기 호출을 수행한다."""
 
     if hasattr(llm, "ainvoke"):
@@ -304,36 +304,36 @@ async def call_openai(state: GraphState) -> GraphState:
     """OpenAI 모델을 호출하고 응답/상태를 반환한다."""
 
     settings = get_settings()
-    model_name = _resolve_model_name(state, "openai", settings.model_openai)
+    model_name = resolve_model_name(state, "openai", settings.model_openai)
     llm_factory = lambda: ChatOpenAI(model=model_name)
-    return await _call_model_common("OpenAI", state, llm_factory)
+    return await call_model_common("OpenAI", state, llm_factory)
 
 
 async def call_gemini(state: GraphState) -> GraphState:
     """Google Gemini 모델을 호출한다."""
 
     settings = get_settings()
-    model_name = _resolve_model_name(state, "gemini", settings.model_gemini)
+    model_name = resolve_model_name(state, "gemini", settings.model_gemini)
     llm_factory = lambda: ChatGoogleGenerativeAI(model=model_name, temperature=0)
-    return await _call_model_common("Gemini", state, llm_factory)
+    return await call_model_common("Gemini", state, llm_factory)
 
 
 async def call_anthropic(state: GraphState) -> GraphState:
     """Anthropic Claude 모델을 호출한다."""
 
     settings = get_settings()
-    model_name = _resolve_model_name(state, "anthropic", settings.model_anthropic)
+    model_name = resolve_model_name(state, "anthropic", settings.model_anthropic)
     llm_factory = lambda: ChatAnthropic(model=model_name, temperature=0)
-    return await _call_model_common("Anthropic", state, llm_factory)
+    return await call_model_common("Anthropic", state, llm_factory)
 
 
 async def call_upstage(state: GraphState) -> GraphState:
     """Upstage Solar 모델을 호출한다."""
 
     settings = get_settings()
-    model_name = _resolve_model_name(state, "upstage", settings.model_upstage)
+    model_name = resolve_model_name(state, "upstage", settings.model_upstage)
     llm_factory = lambda: ChatUpstage(model=model_name)
-    return await _call_model_common("Upstage", state, llm_factory)
+    return await call_model_common("Upstage", state, llm_factory)
 
 
 async def call_perplexity(state: GraphState) -> GraphState:
@@ -344,11 +344,11 @@ async def call_perplexity(state: GraphState) -> GraphState:
         if not pplx_api_key:
             raise RuntimeError("PPLX_API_KEY is missing")
         settings = get_settings()
-        model_name = _resolve_model_name(state, "perplexity", settings.model_perplexity)
+        model_name = resolve_model_name(state, "perplexity", settings.model_perplexity)
         return ChatPerplexity(temperature=0, model=model_name, pplx_api_key=pplx_api_key)
 
     msg_transform = lambda content, source: content if not source else f"{content} (src: {source})"
-    return await _call_model_common("Perplexity", state, llm_factory, message_transform=msg_transform)
+    return await call_model_common("Perplexity", state, llm_factory, message_transform=msg_transform)
 
 
 async def call_mistral(state: GraphState) -> GraphState:
@@ -358,10 +358,10 @@ async def call_mistral(state: GraphState) -> GraphState:
         if ChatMistralAI is None:
             raise RuntimeError("langchain-mistralai 패키지가 설치되어 있지 않습니다.")
         settings = get_settings()
-        model_name = _resolve_model_name(state, "mistral", settings.model_mistral)
+        model_name = resolve_model_name(state, "mistral", settings.model_mistral)
         return ChatMistralAI(model=model_name, temperature=0)
 
-    return await _call_model_common("Mistral", state, llm_factory)
+    return await call_model_common("Mistral", state, llm_factory)
 
 
 async def call_groq(state: GraphState) -> GraphState:
@@ -371,10 +371,10 @@ async def call_groq(state: GraphState) -> GraphState:
         if ChatGroq is None:
             raise RuntimeError("langchain-groq 패키지가 설치되어 있지 않습니다.")
         settings = get_settings()
-        model_name = _resolve_model_name(state, "groq", settings.model_groq)
+        model_name = resolve_model_name(state, "groq", settings.model_groq)
         return ChatGroq(model=model_name, temperature=0)
 
-    return await _call_model_common("Groq", state, llm_factory)
+    return await call_model_common("Groq", state, llm_factory)
 
 
 async def call_cohere(state: GraphState) -> GraphState:
@@ -384,10 +384,10 @@ async def call_cohere(state: GraphState) -> GraphState:
         if ChatCohere is None:
             raise RuntimeError("langchain-cohere 패키지가 설치되어 있지 않습니다.")
         settings = get_settings()
-        model_name = _resolve_model_name(state, "cohere", settings.model_cohere)
+        model_name = resolve_model_name(state, "cohere", settings.model_cohere)
         return ChatCohere(model=model_name, temperature=0)
 
-    return await _call_model_common("Cohere", state, llm_factory)
+    return await call_model_common("Cohere", state, llm_factory)
 
 
 NODE_CONFIG: dict[str, dict[str, str]] = {
@@ -408,14 +408,14 @@ def dispatch_llm_calls(state: GraphState) -> list[Send]:
     user_messages = state.get("user_messages") or []
     if not user_messages:
         raise ValueError("질문이 비어 있습니다.")
-    active_models = state.get("active_models") or _default_active_models()
+    active_models = state.get("active_models") or default_active_models()
     preview_target = ""
     last_user = next((msg for msg in reversed(user_messages) if isinstance(msg, (list, tuple, dict))), None)
     if isinstance(last_user, (list, tuple)) and len(last_user) == 2:
         preview_target = last_user[1]
     elif isinstance(last_user, dict):
         preview_target = last_user.get("content", "")
-    logger.info("LLM fan-out 실행: %s | 질문: %s", ", ".join(active_models), _preview(preview_target))
+    logger.info("LLM fan-out 실행: %s | 질문: %s", ", ".join(active_models), preview_text(preview_target))
     return [Send(node_name, state) for node_name in active_models]
 
 
@@ -426,7 +426,7 @@ __all__ = [
     "dispatch_llm_calls",
     "init_question",
     "_ainvoke",
-    "_preview",
+    "preview_text",
     "call_openai",
     "call_gemini",
     "call_anthropic",
@@ -436,5 +436,5 @@ __all__ = [
     "call_groq",
     "call_cohere",
     "format_response_message",
-    "_resolve_model_name",
+    "resolve_model_name",
 ]

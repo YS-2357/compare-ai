@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from app.api.deps import AuthenticatedUser, enforce_daily_limit, get_current_user, get_settings
 from app.api.schemas import AskRequest, PromptEvalRequest
 from app.logger import get_logger
-from app.services import stream_graph
+from app.services import stream_chat
 from app.services.chat_graph import DEFAULT_MAX_TURNS
 from app.services.prompt_eval import stream_prompt_eval
 from app.rate_limit.router import router as usage_router
@@ -111,7 +111,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                 messages.append({"role": role, "content": content})
 
         try:
-            async for event in stream_graph(
+            async for event in stream_chat(
                 question,
                 turn=turn,
                 max_turns=max_turns,

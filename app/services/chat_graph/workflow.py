@@ -15,8 +15,7 @@ from .llm_registry import create_uuid
 from .nodes import (
     DEFAULT_MAX_TURNS,
     NODE_CONFIG,
-    _ainvoke,
-    _preview,
+    invoke_llm_async,
     call_anthropic,
     call_cohere,
     call_gemini,
@@ -29,6 +28,7 @@ from .nodes import (
     GraphState,
     init_question,
 )
+from .summaries import preview_text
 
 logger = get_logger(__name__)
 settings_cache = get_settings()
@@ -78,7 +78,7 @@ def get_app():
     return _app
 
 
-def _normalize_messages(messages: list | None) -> list[dict[str, str]]:
+def normalize_messages(messages: list | None) -> list[dict[str, str]]:
     """Streamlit 표시를 위해 메시지를 표준화한다."""
 
     normalized: list[dict[str, str]] = []
@@ -120,7 +120,7 @@ async def stream_chat(
         yield {"type": "error", "message": warning, "node": None, "model": None, "turn": turn}
         return
 
-    logger.info("LangGraph 스트림 실행: %s", _preview(question))
+    logger.info("LangGraph 스트림 실행: %s", preview_text(question))
     base_question = question.strip()
     app = get_app()
     start_time = time.perf_counter()
@@ -184,7 +184,7 @@ async def stream_chat(
                     "answer": answer,
                     "status": api_status,
                     "source": (state.get("raw_sources") or {}).get(model_label),
-                    "messages": _normalize_messages(model_msgs),
+                    "messages": normalize_messages(model_msgs),
                     "type": "partial",
                     "turn": turn_index,
                     "elapsed_ms": elapsed_ms,

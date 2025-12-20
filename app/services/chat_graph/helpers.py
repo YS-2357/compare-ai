@@ -11,7 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.logger import get_logger
 from app.config import get_settings
-from .summaries import _preview
+from .summaries import preview_text
 
 logger = get_logger(__name__)
 settings_cache = get_settings()
@@ -105,7 +105,7 @@ def render_chat_history(state: Any, label: str, max_messages: int = 10) -> str:
         label,
         len(lines),
         len(history_text),
-        _preview(history_text),
+        preview_text(history_text),
     )
     return history_text
 
@@ -151,7 +151,7 @@ def build_chat_prompt_input(state: Any, label: str) -> str:
         state.get("turn") or 1,
         mode,
         len(prompt),
-        _preview(prompt),
+        preview_text(prompt),
     )
     return prompt
 
