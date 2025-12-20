@@ -17,8 +17,8 @@ from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.logger import get_logger
-from app.services.langgraph.errors import build_status_from_error, build_status_from_response
-from app.services.langgraph.llm_registry import (
+from app.services.chat_graph.errors import build_status_from_error, build_status_from_response
+from app.services.chat_graph.llm_registry import (
     ChatAnthropic,
     ChatCohere,
     ChatGoogleGenerativeAI,

@@ -11,7 +11,7 @@ from app.api.deps import AuthenticatedUser, enforce_daily_limit, get_current_use
 from app.api.schemas import AskRequest, PromptEvalRequest
 from app.logger import get_logger
 from app.services import stream_graph
-from app.services.langgraph import DEFAULT_MAX_TURNS
+from app.services.chat_graph import DEFAULT_MAX_TURNS
 from app.services.prompt_eval import stream_prompt_eval
 from app.rate_limit.router import router as usage_router
 
