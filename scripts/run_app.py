@@ -20,7 +20,7 @@ STREAMLIT_SCRIPT = BASE_DIR / "app" / "ui" / "streamlit_app.py"
 FASTAPI_URL_FILE = BASE_DIR / ".fastapi_url"
 
 
-def run_fastapi(host: str, port: int) -> None:
+def _run_fastapi(host: str, port: int) -> None:
     """별도 스레드에서 FastAPI(Uvicorn) 서버를 실행한다.
 
     Args:
@@ -36,7 +36,7 @@ def run_fastapi(host: str, port: int) -> None:
     server.run()
 
 
-def ensure_streamlit_config() -> None:
+def _ensure_streamlit_config() -> None:
     """Streamlit 실행에 필요한 최소 설정 파일을 생성한다."""
 
     config_dir = Path.home() / ".streamlit"
@@ -46,10 +46,10 @@ def ensure_streamlit_config() -> None:
         config_file.write_text("[browser]\ngatherUsageStats = false\n")
 
 
-def run_streamlit(port: int, env: dict[str, str]) -> None:
+def _run_streamlit(port: int, env: dict[str, str]) -> None:
     """지정된 포트에서 Streamlit 앱을 실행한다."""
 
-    ensure_streamlit_config()
+    _ensure_streamlit_config()
     cmd = [
         sys.executable,
         "-m",
@@ -86,7 +86,7 @@ def main() -> None:
     env = os.environ.copy()
 
     api_thread = threading.Thread(
-        target=run_fastapi,
+        target=_run_fastapi,
         args=(host, fastapi_port),
         name="fastapi-thread",
         daemon=True,
@@ -98,7 +98,7 @@ def main() -> None:
     logger.info("FastAPI URL이 설정되었습니다: %s", fastapi_url)
 
     try:
-        run_streamlit(streamlit_port, env)
+        _run_streamlit(streamlit_port, env)
     except KeyboardInterrupt:
         logger.warning("사용자 중단 감지, Streamlit 종료")
 
