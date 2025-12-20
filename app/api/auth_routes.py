@@ -14,7 +14,12 @@ logger = get_logger(__name__)
 
 @router.post("/register", response_model=RegisterResponse)
 async def register(payload: RegisterRequest) -> RegisterResponse:
-    """이메일+비밀번호 회원가입을 수행한다."""
+    """이메일+비밀번호 회원가입을 수행한다.
+
+    - 입력: `email`, `password`.
+    - 처리: Supabase Auth REST `/signup` 호출.
+    - 결과: 사용자 ID, 이메일, 인증 메일 발송 시각(`confirmation_sent_at`)을 반환한다.
+    """
 
     client = get_auth_client()
     try:
@@ -33,7 +38,13 @@ async def register(payload: RegisterRequest) -> RegisterResponse:
 
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest) -> LoginResponse:
-    """이메일+비밀번호 로그인 후 Supabase 토큰을 반환한다."""
+    """이메일+비밀번호 로그인 후 Supabase 토큰을 반환한다.
+
+    - 입력: `email`, `password`.
+    - 처리: Supabase Auth REST `token?grant_type=password` 호출.
+    - 결과: `access_token`, `token_type`(bearer), `expires_in`, `refresh_token`, `user` 정보를 반환한다.
+    - 클라이언트는 `Authorization: Bearer <access_token>` 헤더로 API를 호출한다.
+    """
 
     client = get_auth_client()
     try:
@@ -52,4 +63,3 @@ async def login(payload: LoginRequest) -> LoginResponse:
 
 
 __all__ = ["router"]
-

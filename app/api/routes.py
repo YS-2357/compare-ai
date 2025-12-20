@@ -28,10 +28,10 @@ def _preview(text: str, limit: int = 80) -> str:
 
 @router.get("/health")
 async def health():
-    """서비스 가용성을 확인하는 헬스 체크 응답을 반환한다.
+    """서비스 가용성을 확인하는 헬스 체크.
 
-    Returns:
-        dict: `{"status": "ok"}` 구조의 간단한 상태 객체.
+    - 인증/쿼리 파라미터가 필요 없는 가장 단순한 경로.
+    - 응답은 `{"status": "ok"}` 형태의 JSON 한 건이다.
     """
 
     return {"status": "ok"}
@@ -62,12 +62,19 @@ async def health():
 async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(get_current_user)):
     """LangGraph 워크플로우를 NDJSON 스트림으로 실행한다.
 
-    Args:
-        payload: 질문 문자열 및 모델/히스토리 옵션을 담은 요청 본문.
-        user: 인증된 사용자 정보.
+    요청 본문:
+    - `question`(str): 필수 질문.
+    - `history`(list[{"role","content"}]): 이전 대화 히스토리(없으면 새 대화로 처리).
+    - `turn`/`max_turns`: 멀티턴 제한 제어(관리자는 우회).
+    - `models`(dict): 공급자별 기본 모델을 덮어쓸 때 사용(예: `{"openai": "gpt-4o-mini"}`).
 
-    Returns:
-        StreamingResponse: partial/summary 이벤트를 줄 단위 JSON으로 전달하는 스트림 응답.
+    응답 스트림(한 줄씩 JSON):
+    - `type="partial"`: 모델별 진행 중 결과. `model`, `answer`, `elapsed_ms`, `status`(LLM 응답 상태), `source`(출처) 포함.
+    - `type="error"`: 특정 모델/노드 오류. `message`, `model`, `node`, `status` 포함.
+    - `type="summary"`: 전체 완료 메타. `answers`(모델별 최종 답변), `order`(완료 순서), `api_status`, `durations_ms`, `sources`, `messages`, `errors`, `usage_limit`, `usage_remaining` 포함.
+
+    헤더:
+    - `X-Usage-Limit`, `X-Usage-Remaining`: 남은 일일 호출 횟수(관리자는 null).
     """
 
     settings = get_settings()
@@ -213,18 +220,38 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                     "example": {
                         "type": "summary",
                         "result": {
-                            "scores": [{"model": "OpenAI", "score": 9.5, "rank": 1, "rationale": "..."}],
-                            "score_table": "| Model | Score | Rank | Rationale | ...",
+                            "scores": [
+                                {"model": "OpenAI", "score": 9.5, "rank": 1, "rationale": "응답 완결성/정확도 우수", "status": {"status": 200, "detail": "stop"}}
+                            ],
+                            "avg_score": 8.7,
+                            "evaluations": [
+                                {
+                                    "evaluator": "OpenAI",
+                                    "model": "gpt-4o-mini",
+                                    "scores": [{"target": "Gemini", "score": 8, "rationale": "간결/정확"}],
+                                    "status": {"status": 200, "detail": "stop"},
+                                    "elapsed_ms": 3500,
+                                }
+                            ],
                         },
-                    }
+                    },
                 }
             },
         }
     },
     summary="프롬프트 평가 스트리밍 질의",
+    description=(
+        "공통 프롬프트로 여러 모델의 답변을 생성한 뒤, 벤더별 최신 모델이 교차 평가하여 점수/근거를 NDJSON 스트림으로 반환합니다.\n\n"
+        "응답 이벤트:\n"
+        "- `type=\"partial\"` & `phase=\"generation\"`: 모델별 원본 답변이 도착할 때 발생. `model`, `answer`, `status`, `elapsed_ms` 포함.\n"
+        "- `type=\"partial\"` & `phase=\"evaluation\"`: 평가자가 각 타깃 모델을 채점할 때 발생. `evaluator`, `target_model`, `score`, `rationale`, `status`, `elapsed_ms` 포함.\n"
+        "- `type=\"summary\"`: 모든 평가가 끝난 후 최종 점수 표(`scores`), 평가자별 원본 점수/근거(`evaluations`), 평균점수(`avg_score`)를 포함.\n"
+        "- `type=\"error\"`: 처리 중 오류.\n\n"
+        "헤더: `X-Usage-Limit`, `X-Usage-Remaining`에 남은 일일 호출 수가 담깁니다."
+    ),
 )
 async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depends(get_current_user)):
-    """모델별 프롬프트를 적용한 후 블라인드 평가를 수행한다."""
+    """공통 프롬프트로 여러 모델을 호출하고, 최신 평가자들이 교차 평가해 점수를 스트리밍한다."""
 
     settings = get_settings()
     question = payload.question.strip()
