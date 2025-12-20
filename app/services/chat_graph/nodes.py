@@ -425,7 +425,7 @@ __all__ = [
     "DEFAULT_MAX_TURNS",
     "dispatch_llm_calls",
     "init_question",
-    "_ainvoke",
+    "invoke_llm_async",
     "preview_text",
     "call_openai",
     "call_gemini",
