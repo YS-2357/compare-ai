@@ -1,6 +1,6 @@
 ﻿# app/auth
 
-> 최종 업데이트: 2025-12-05 · 관리자 이메일 우회 + Supabase 타임아웃 정리
+> 최종 업데이트: 2025-12-20 · 네이밍 가이드/내부 함수 규칙 재확인, Supabase 검증/클라이언트 구조는 동일 유지
 
 - Supabase JWT 검증 및 Auth REST 클라이언트 유틸.
 - `dependencies.py`: `get_current_user`가 Bearer JWT를 검증하고 `ADMIN_EMAIL` 사용자에 bypass 플래그 부여.

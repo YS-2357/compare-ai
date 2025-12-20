@@ -1,7 +1,7 @@
 # Compare-AI (FastAPI + Streamlit 단일 레포)
 
 FastAPI 백엔드와 Streamlit UI가 한 레포(`compare-ai`)에 함께 있으며, 단일 커맨드로 로컬 실행합니다.  
-> **최종 업데이트: 2025-12-20** — 프롬프트 평가 스트리밍 개선, 서비스 구조 리네임(`chat_graph`), 모델 목록/가이드 최신화
+> **최종 업데이트: 2025-12-20** — 프롬프트 평가 스트리밍/병렬화, 서비스 구조 리네임(`chat_graph`), 모델 목록/가이드 최신화, Streamlit 평가 테이블 렌더링 개선(width API/Arrow 오류 대응)
 
 ## 📋 프로젝트 개요
 

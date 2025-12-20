@@ -1,6 +1,6 @@
 ﻿# app/api/
 
-> 최종 업데이트: 2025-12-18 · 프롬프트 평가 스트림(`/api/prompt-eval`) 추가, 평가 결과 JSON 반환
+> 최종 업데이트: 2025-12-20 · 프롬프트 평가 병렬화/에러 내성 개선, LangGraph 리네임(`chat_graph`), 평가 테이블 렌더링 변경에 따른 응답 필드 정규화
 
 - `routes.py`: `/health`, `/api/ask`, `/api/prompt-eval`, `/usage` 엔드포인트. 모델 덮어쓰기/관리자 우회 전달, 사용량 헤더 스트리밍, 프롬프트 평가 NDJSON 제공.
 - `auth_routes.py`: `/auth/register`, `/auth/login` (Supabase Auth REST 연동).

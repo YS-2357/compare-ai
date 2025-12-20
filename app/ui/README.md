@@ -1,6 +1,6 @@
 # app/ui/
 
-> 최종 업데이트: 2025-12-18 — 프롬프트 평가 탭 추가(공통 프롬프트 + 다중 모델 교차 평가), 평가 결과 DataFrame/expander 렌더, 에러 내성 강화
+> 최종 업데이트: 2025-12-20 — 평가 탭 DataFrame 렌더 개선(width API 대응, status 문자열화로 Arrow 오류 방지), 프롬프트 평가 병렬화 반영
 
 - Streamlit 로컬/개발용 UI (별도 Render 서비스로도 사용 가능).
 - 로그인/회원가입 → 질문 → 스트림(partial/summary) 표시, 모델별 답변과 source 표시.

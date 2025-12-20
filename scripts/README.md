@@ -1,6 +1,6 @@
 # scripts/
 
-> 최종 업데이트: 2025-12-03 — FastAPI/Streamlit 동시 실행 스크립트 안내 유지
+> 최종 업데이트: 2025-12-20 — `run_app.py` 헬퍼 네이밍 가이드 반영(`_run_*`, `_ensure_*`)
 
 - `run_app.py`: FastAPI(Uvicorn) + Streamlit을 함께 실행하는 개발용 스크립트.
 - `python main.py` 실행 시 기본으로 run_app을 호출하며, `APP_MODE=api` 설정 시 FastAPI만 단독 실행.

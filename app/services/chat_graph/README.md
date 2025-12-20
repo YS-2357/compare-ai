@@ -1,6 +1,6 @@
 # app/services/chat_graph/
 
-> LangGraph 기반 채팅/비교 워크플로우 (`stream_chat` 등)
+> 최종 업데이트: 2025-12-20 — 네이밍 가이드 반영(stream_chat, message_to_text 등), 런타임 NameError 수정
 
 - `workflow.py`: 그래프 생성/컴파일, 이벤트 스트림, 모델 오버라이드/턴 제한 처리.
 - `nodes.py`: call_* 노드(LLM 호출 + 파싱), 상태 병합/요약.

@@ -1,6 +1,6 @@
 ﻿# app/rate_limit/
 
-> 최종 업데이트: 2025-12-05 · Upstash 타임아웃 + 종료 훅
+> 최종 업데이트: 2025-12-20 · 네이밍/내부 함수 규칙 재확인, 기존 Upstash 의존성/타임아웃 구조 유지
 
 - Upstash Redis 기반 일일 사용량 제한기.
 - `upstash.py`: HTTP 타임아웃 설정 및 종료 훅을 가진 비동기 클라이언트(INCR + EXPIRE).
