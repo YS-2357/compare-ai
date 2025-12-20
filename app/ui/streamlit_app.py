@@ -34,6 +34,8 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
             "o4-mini-deep-research",
             "gpt-4-turbo",
             "gpt-3.5-turbo",
+            # 과거/저렴 모델도 유지
+            "gpt-4o-nano",
         ],
     },
     "gemini": {
@@ -105,6 +107,23 @@ def _default_model(provider: str) -> str:
     env_value = os.getenv(meta["env"])
     if env_value:
         return env_value
+    # 가벼운/저렴한 모델을 기본값으로 선택(리스트에 없으면 첫 번째)
+    cheap_candidates = [
+        "gpt-4o-mini",
+        "gpt-4o-nano",
+        "gpt-5-nano",
+        "gemini-2.5-flash-lite",
+        "claude-3-haiku",
+        "solar-mini",
+        "sonar-small",
+        "mistral-small-3.2",
+        "ministral-3-8b",
+        "grok-2-mini",
+        "command-light",
+    ]
+    for candidate in cheap_candidates:
+        if candidate in meta["choices"]:
+            return candidate
     return meta["choices"][0]
 
 
