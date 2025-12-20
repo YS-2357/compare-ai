@@ -73,7 +73,7 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
     "perplexity": {
         "label": "Perplexity Sonar",
         "env": "MODEL_PERPLEXITY",
-        "choices": ["sonar", "sonar-small", "sonar-medium", "pplx-online"],
+        "choices": ["sonar", "sonar-pro", "sonar-medium-online"],
     },
     "mistral": {
         "label": "Mistral",
