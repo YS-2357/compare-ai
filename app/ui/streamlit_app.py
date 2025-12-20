@@ -19,56 +19,26 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
     "openai": {
         "label": "OpenAI",
         "env": "MODEL_OPENAI",
-        "choices": [
-            "gpt-5",
-            "gpt-5-mini",
-            "gpt-5-nano",
-            "gpt-4.1",
-            "gpt-4.1-mini",
-            "gpt-4o",
-            "gpt-4o-mini",
-            "o3",
-            "o3-pro",
-            "o3-deep-research",
-            "o4-mini",
-            "o4-mini-deep-research",
-            "gpt-4-turbo",
-            "gpt-3.5-turbo",
-            # 과거/저렴 모델도 유지
-            "gpt-4o-nano",
-        ],
+        "choices": ["gpt-4o-mini", "gpt-4o-nano", "gpt-4o"],
     },
     "gemini": {
         "label": "Google Gemini",
         "env": "MODEL_GEMINI",
-        "choices": [
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
-            "gemini-2.5-flash-lite",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash",
-            "gemini-1.5-flash-8b",
-        ],
+        "choices": ["gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-1.5-pro"],
     },
     "anthropic": {
         "label": "Anthropic Claude",
         "env": "MODEL_ANTHROPIC",
         "choices": [
-            "claude-3-opus",
-            "claude-3-sonnet",
-            "claude-3-haiku",
-            "claude-3.5-sonnet",
+            "claude-haiku-4-5-20251001",
+            "claude-3-5-sonnet-20241022",
+            "claude-3-opus-20240229",
         ],
     },
     "upstage": {
         "label": "Upstage Solar",
         "env": "MODEL_UPSTAGE",
-        "choices": [
-            "solar-1-mini-chat",
-            "solar-1-32b-chat",
-            "solar-mini",
-            "solar-pro",
-        ],
+        "choices": ["solar-mini", "solar-pro", "solar-1-mini-chat"],
     },
     "perplexity": {
         "label": "Perplexity Sonar",
@@ -78,24 +48,17 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
     "mistral": {
         "label": "Mistral",
         "env": "MODEL_MISTRAL",
-        "choices": [
-            "mistral-large-3",
-            "mistral-large-latest",
-            "mistral-medium-3.1",
-            "mistral-small-3.2",
-            "ministral-3-8b",
-            "ministral-3-14b",
-        ],
+        "choices": ["mistral-large-latest", "mistral-large-2407", "mistral-small-latest"],
     },
     "groq": {
         "label": "Groq",
         "env": "MODEL_GROQ",
-        "choices": ["grok-2", "grok-2-mini", "grok-2-vision"],
+        "choices": ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"],
     },
     "cohere": {
         "label": "Cohere",
         "env": "MODEL_COHERE",
-        "choices": ["command-r-plus", "command-r", "command-light"],
+        "choices": ["command-r-plus", "command-r", "command-r7b"],
     },
 }
 
