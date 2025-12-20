@@ -78,7 +78,7 @@ def get_app():
     return _app
 
 
-def normalize_messages(messages: list | None) -> list[dict[str, str]]:
+def _normalize_messages(messages: list | None) -> list[dict[str, str]]:
     """Streamlit 표시를 위해 메시지를 표준화한다."""
 
     normalized: list[dict[str, str]] = []
@@ -184,7 +184,7 @@ async def stream_chat(
                     "answer": answer,
                     "status": api_status,
                     "source": (state.get("raw_sources") or {}).get(model_label),
-                    "messages": normalize_messages(model_msgs),
+                    "messages": _normalize_messages(model_msgs),
                     "type": "partial",
                     "turn": turn_index,
                     "elapsed_ms": elapsed_ms,
