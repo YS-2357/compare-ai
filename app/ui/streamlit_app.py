@@ -874,15 +874,24 @@ def main() -> None:
         st.subheader("Prompt Eval")
         eval_mermaid = """
         flowchart TD
-          Q2[Question + Common Prompt] --> GEN[Generate: each active model]
-          GEN --> OAI_E[Eval by OpenAI (latest)]
-          GEN --> GEM_E[Eval by Gemini (latest)]
-          GEN --> ANT_E[Eval by Anthropic (latest)]
-          GEN --> UPS_E[Eval by Upstage (latest)]
-          GEN --> PPLX_E[Eval by Perplexity (latest)]
-          GEN --> MIS_E[Eval by Mistral (latest)]
-          GEN --> GRQ_E[Eval by Groq (latest)]
-          GEN --> COH_E[Eval by Cohere (latest)]
+          Q2[Question + Common Prompt] --> OAI_G[Generate OpenAI]
+          Q2 --> GEM_G[Generate Gemini]
+          Q2 --> ANT_G[Generate Anthropic]
+          Q2 --> UPS_G[Generate Upstage]
+          Q2 --> PPLX_G[Generate Perplexity]
+          Q2 --> MIS_G[Generate Mistral]
+          Q2 --> GRQ_G[Generate Groq]
+          Q2 --> COH_G[Generate Cohere]
+
+          OAI_G --> OAI_E[Eval by OpenAI (latest)]
+          GEM_G --> GEM_E[Eval by Gemini (latest)]
+          ANT_G --> ANT_E[Eval by Anthropic (latest)]
+          UPS_G --> UPS_E[Eval by Upstage (latest)]
+          PPLX_G --> PPLX_E[Eval by Perplexity (latest)]
+          MIS_G --> MIS_E[Eval by Mistral (latest)]
+          GRQ_G --> GRQ_E[Eval by Groq (latest)]
+          COH_G --> COH_E[Eval by Cohere (latest)]
+
           OAI_E --> SUM[Summary (scores, rationales)]
           GEM_E --> SUM
           ANT_E --> SUM
