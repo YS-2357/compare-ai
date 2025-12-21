@@ -777,6 +777,7 @@ def main() -> None:
     logger.debug("streamlit_main:종료")
 
     tab_compare, tab_prompt = st.tabs(["모델 비교", "프롬프트 평가"])
+    tab_graph = st.tabs(["그래프 보기"])[0]
 
     with tab_compare:
         st.header("대화")
@@ -843,6 +844,41 @@ def main() -> None:
                     _send_prompt_eval(question_eval, eval_url, headers, prompt_payload, active_labels)
                 except Exception as exc:  # pragma: no cover
                     st.error(f"요청 실패: {exc}")
+
+    with tab_graph:
+        st.header("그래프 보기 (Mermaid)")
+        st.caption("LangGraph 워크플로우와 프롬프트 평가 파이프라인을 단순화해 표시합니다.")
+        st.subheader("Chat Graph")
+        chat_mermaid = """
+        flowchart TD
+          Q[User Question] --> INIT[init_question]
+          INIT -->|fan-out| OAI[call_openai]
+          INIT --> GEM[call_gemini]
+          INIT --> ANT[call_anthropic]
+          INIT --> PPLX[call_perplexity]
+          INIT --> UPS[call_upstage]
+          INIT --> MIS[call_mistral]
+          INIT --> GRQ[call_groq]
+          INIT --> COH[call_cohere]
+          OAI --> END1[END]
+          GEM --> END1
+          ANT --> END1
+          PPLX --> END1
+          UPS --> END1
+          MIS --> END1
+          GRQ --> END1
+          COH --> END1
+        """
+        st.markdown(f"```mermaid\n{chat_mermaid}\n```")
+
+        st.subheader("Prompt Eval")
+        eval_mermaid = """
+        flowchart TD
+          Q2[Question + Common Prompt] --> GEN[Generate by active models]
+          GEN --> EVAL[Evaluate by latest vendor models]
+          EVAL --> SUM[Summary (scores, rationales)]
+        """
+        st.markdown(f"```mermaid\n{eval_mermaid}\n```")
 
 
 if __name__ == "__main__":
