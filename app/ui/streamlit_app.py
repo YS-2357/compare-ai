@@ -240,7 +240,6 @@ def _append_chat_log_entry(
 def _status_to_emoji(status_val: Any) -> str:
     """상태 코드/문자열을 이모지로 변환한다."""
 
-    logger.debug("_status_to_emoji:시작 status=%s", status_val)
     code = None
     if isinstance(status_val, dict):
         code = status_val.get("status")
@@ -263,22 +262,17 @@ def _status_to_emoji(status_val: Any) -> str:
     except Exception:
         code_int = None
     if code_int is None:
-        logger.debug("_status_to_emoji:종료 emoji=❔")
         return "❔"
     if code_int >= 500:
-        logger.debug("_status_to_emoji:종료 emoji=❌")
         return "❌"
     if code_int >= 400:
-        logger.debug("_status_to_emoji:종료 emoji=⚠️")
         return "⚠️"
-    logger.debug("_status_to_emoji:종료 emoji=✅")
     return "✅"
 
 
 def _is_error_status(status_val: Any) -> bool:
     """상태 코드/문자열이 오류인지 판별한다."""
 
-    logger.debug("_is_error_status:시작 status=%s", status_val)
     code = None
     if isinstance(status_val, dict):
         code = status_val.get("status")
@@ -299,10 +293,8 @@ def _is_error_status(status_val: Any) -> bool:
     except Exception:
         code_int = None
     if code_int is None:
-        logger.debug("_is_error_status:종료 result=False")
         return False
     result = code_int >= 400
-    logger.debug("_is_error_status:종료 result=%s", result)
     return result
 
 

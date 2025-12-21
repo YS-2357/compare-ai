@@ -81,28 +81,22 @@ def build_status_from_response(
 ) -> dict[str, Any]:
     """LLM 응답 객체에서 상태 메타데이터를 추출한다."""
 
-    logger.debug("build_status_from_response:시작 default_status=%s", default_status)
     metadata = getattr(response, "response_metadata", None) or {}
     status = metadata.get("status_code") or metadata.get("status") or metadata.get("http_status")
     detail_text = metadata.get("finish_reason") or metadata.get("reason") or detail
-    result = {"status": status or default_status, "detail": detail_text}
-    logger.info("build_status_from_response:완료 status=%s detail=%s", result["status"], result["detail"])
-    return result
+    return {"status": status or default_status, "detail": detail_text}
 
 
 def build_status_from_error(error: Exception) -> dict[str, Any]:
     """예외 객체를 API 상태 표현으로 변환한다."""
 
-    logger.debug("build_status_from_error:시작 type=%s", type(error).__name__)
     status = cast(int | None, getattr(error, "status_code", None))
     if status is None:
         response = getattr(error, "response", None)
         if response is not None:
             status = getattr(response, "status_code", None)
     detail = _simplify_error_message(error)
-    result = {"status": status or "error", "detail": detail}
-    logger.info("build_status_from_error:완료 status=%s detail=%s", result["status"], result["detail"])
-    return result
+    return {"status": status or "error", "detail": detail}
 
 
 __all__ = ["_simplify_error_message", "build_status_from_response", "build_status_from_error"]

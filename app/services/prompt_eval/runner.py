@@ -161,7 +161,7 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         message = f"응답 실패: {status.get('detail') or exc}"
         logger.warning("%s 호출 실패: %s", label, message)
-        logger.debug("_call_single_model:raw_response 실패 label=%s status=%s", label, status)
+        logger.debug("_call_single_model:예외 raw_response label=%s status=%s", label, status)
         return {
             "model": label,
             "answer": message,
@@ -286,6 +286,7 @@ async def _evaluate_answers(
             for i, r in enumerate(results)
         ]
         elapsed_ms = int((time.perf_counter() - start_eval) * 1000)
+        logger.debug("_evaluate_answers:예외 raw_response evaluator=%s error=%s", evaluator_label, exc)
         return {
             "evaluator": evaluator_label,
             "scores": fallback_scores,
