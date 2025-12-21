@@ -642,20 +642,37 @@ def _send_prompt_eval(
             if avg_score is not None:
                 st.markdown(f"✨ **평균 점수:** {avg_score}")
             if scores:
-                normalized_scores = []
-                for row in scores:
-                    status_val = row.get("status")
-                    status_str = ""
-                    if isinstance(status_val, dict):
-                        status_str = str(status_val.get("status") or status_val)
-                    elif status_val is not None:
-                        status_str = str(status_val)
-                    normalized_scores.append({**row, "status": status_str})
-                st.dataframe(normalized_scores, width="stretch")
+                # 카드형 요약 (모델/점수/순위/상태/근거)
+                for i in range(0, len(scores), 2):
+                    cols = st.columns(2)
+                    for score_row, col in zip(scores[i : i + 2], cols):
+                        model = score_row.get("model")
+                        score_val = score_row.get("score")
+                        rank = score_row.get("rank")
+                        rationale = score_row.get("rationale") or ""
+                        status_val = score_row.get("status") or {}
+                        emoji = _status_to_emoji(status_val)
+                        with col.container():
+                            st.markdown(f"{emoji} **{model}** — 점수: {score_val}, 순위: {rank}")
+                            if rationale:
+                                st.write(rationale)
+                # 복사용 텍스트 뷰
+                lines = []
+                for s in scores:
+                    lines.append(f"[{s.get('model')}] score={s.get('score')} rank={s.get('rank')}")
+                    if s.get("rationale"):
+                        lines.append(f"rationale: {s.get('rationale')}")
+                st.markdown("📋 복사용 텍스트")
+                st.code("\n".join(lines), language="text")
+                st.download_button(
+                    "결과 JSON 다운로드",
+                    data=json.dumps(summary_data, ensure_ascii=False, indent=2),
+                    file_name="prompt_eval_result.json",
+                    mime="application/json",
+                )
             evaluations = summary_data.get("evaluations") or []
             if evaluations:
                 with st.expander("🧠 평가자별 원본 점수/근거 보기", expanded=False):
-                    eval_rows = []
                     for ev in evaluations:
                         status = ev.get("status") or {}
                         status_str = ""
@@ -663,20 +680,18 @@ def _send_prompt_eval(
                             status_str = str(status.get("status") or status)
                         elif status is not None:
                             status_str = str(status)
-                        eval_rows.append(
-                            {
-                                "evaluator": ev.get("evaluator"),
-                                "status": status_str,
-                                "detail": status.get("detail") if isinstance(status, dict) else "",
-                                "model": status.get("model") if isinstance(status, dict) else "",
-                                "elapsed_ms": ev.get("elapsed_ms"),
-                                "scores_count": len(ev.get("scores") or []),
-                            }
+                        emoji = _status_to_emoji(status)
+                        st.markdown(
+                            f"{emoji} **평가자:** {ev.get('evaluator')} | 상태: {status_str} | 모델: "
+                            f"{(status.get('model') if isinstance(status, dict) else '')}"
                         )
-                    if eval_rows:
-                        st.dataframe(eval_rows, width="stretch")
-                    st.caption("원본 응답/점수 JSON")
-                    st.json(evaluations)
+                        score_list = ev.get("scores") or []
+                        for sc in score_list:
+                            st.write(f"- 대상: {sc.get('model')} | 점수: {sc.get('score')} | 순위: {sc.get('rank')}")
+                            if sc.get("rationale"):
+                                st.caption(f"  근거: {sc.get('rationale')}")
+                        if ev.get("elapsed_ms") is not None:
+                            st.caption(f"소요 시간: {ev.get('elapsed_ms')} ms")
         elif event_type == "usage":
             # 사용량 메타는 표시만 건너뜀
             continue
