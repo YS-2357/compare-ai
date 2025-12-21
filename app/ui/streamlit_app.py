@@ -109,7 +109,7 @@ def _ensure_model_selections() -> None:
 
 
 def _render_model_selector() -> None:
-    logger.debug("_render_model_selector:시작")
+    logger.debug("_render_model_selector:시작 model_options=%s", list(MODEL_OPTIONS.keys()))
     _ensure_model_selections()
     st.subheader("모델 선택")
     for key, meta in MODEL_OPTIONS.items():
@@ -125,7 +125,7 @@ def _render_model_selector() -> None:
             key=f"model_select_{key}",
         )
         st.session_state["model_selections"][key] = selection
-    logger.debug("_render_model_selector:종료")
+    logger.debug("_render_model_selector:종료 selections=%s", st.session_state.get("model_selections"))
 
 
 def _load_base_url() -> str:
