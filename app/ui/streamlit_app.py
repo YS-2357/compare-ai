@@ -670,12 +670,15 @@ def _send_prompt_eval(
                     rank = s.get("rank")
                     avg = s.get("score")
                     eval_items = per_model.get(model, [])
+                    score_list = ", ".join(
+                        f"{item.get('evaluator')}: {item.get('score')}" for item in eval_items if item.get("score") is not None
+                    )
                     summary_rows.append(
                         {
                             "순위": rank,
                             "모델": model,
                             "평균점수": avg,
-                            "평가자 수": len(eval_items),
+                            "받은 점수": score_list,
                         }
                     )
                 if summary_rows:
