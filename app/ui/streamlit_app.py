@@ -694,11 +694,17 @@ def _send_prompt_eval(
                     st.markdown(f"### {rank}위 · {model} (평균점수: {avg})")
                     eval_items = per_model.get(model, [])
                     if eval_items:
+                        # 평가자별 점수/근거 테이블
+                        rationale_rows = []
                         for item in eval_items:
-                            st.write(f"- {item.get('evaluator')}: 점수={item.get('score')}")
-                            rationale = item.get("rationale")
-                            if rationale:
-                                st.caption(f"  근거: {rationale}")
+                            rationale_rows.append(
+                                {
+                                    "평가자": item.get("evaluator"),
+                                    "점수": item.get("score"),
+                                    "근거": item.get("rationale") or "",
+                                }
+                            )
+                        st.table(rationale_rows)
                     elif s.get("rationale"):
                         st.caption(f"- 근거: {s.get('rationale')}")
                     lines.append(f"{rank}위 | {model} | 평균점수={avg}")
