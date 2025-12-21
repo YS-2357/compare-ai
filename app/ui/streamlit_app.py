@@ -661,34 +661,26 @@ def _send_prompt_eval(
                                 "rationale": sc.get("rationale"),
                             }
                         )
-                table_rows = []
-                for s in scores:
-                    model = s.get("model")
-                    evaluator_scores = per_model.get(model, [])
-                    score_list = ", ".join(
-                        f"{item.get('evaluator')}: {item.get('score')}" for item in evaluator_scores if item.get("score") is not None
-                    )
-                    rationales = "\n".join(
-                        f"[{item.get('evaluator')}] {item.get('rationale')}" for item in evaluator_scores if item.get("rationale")
-                    )
-                    table_rows.append(
-                        {
-                            "순위": s.get("rank"),
-                            "모델": model,
-                            "평균점수": s.get("score"),
-                            "평가자별 점수": score_list,
-                            "근거": rationales or s.get("rationale") or "",
-                        }
-                    )
-                st.dataframe(table_rows, width="stretch")
-                # 복사용 텍스트 뷰
+                # 순위 기준 정렬
+                sorted_scores = sorted(scores, key=lambda x: x.get("rank") or 999)
                 lines = []
-                for row in table_rows:
-                    lines.append(
-                        f"{row['순위']}위 | {row['모델']} | 평균점수={row['평균점수']} | 평가자별 점수={row['평가자별 점수']}"
-                    )
-                    if row["근거"]:
-                        lines.append(f"근거: {row['근거']}")
+                for s in sorted_scores:
+                    model = s.get("model")
+                    rank = s.get("rank")
+                    avg = s.get("score")
+                    st.markdown(f"**{rank}위: {model}** (평균점수: {avg})")
+                    eval_items = per_model.get(model, [])
+                    if eval_items:
+                        for item in eval_items:
+                            st.write(f"- {item.get('evaluator')}: 점수={item.get('score')}")
+                            rationale = item.get("rationale")
+                            if rationale:
+                                st.caption(f"  근거: {rationale}")
+                    elif s.get("rationale"):
+                        st.caption(f"- 근거: {s.get('rationale')}")
+                    lines.append(f"{rank}위 | {model} | 평균점수={avg}")
+                    for item in eval_items:
+                        lines.append(f"  {item.get('evaluator')}: {item.get('score')} | 근거: {item.get('rationale') or ''}")
                 st.markdown("📋 복사용 텍스트")
                 st.code("\n".join(lines), language="text")
                 st.download_button(
