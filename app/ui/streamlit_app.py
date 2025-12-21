@@ -868,11 +868,11 @@ def main() -> None:
             placeholder="예:\n[Question]\n{question}\n\n답변은 한국어로 작성하세요.",
             height=120,
         )
-        st.markdown("선택사항: 예시 답변(기준)")
+        st.markdown("선택사항: 모범 답변 예시")
         st.text_area(
-            "예시 답변 (없으면 비워두세요)",
+            "[선택] 모범답변 예시",
             key="prompt_eval_reference",
-            placeholder="예시: 주 4일제 도입 시 생산성이 유지되고 이직률이 낮아진 사례를 근거로 설명...",
+            placeholder="예시 모범답변을 입력하세요.",
             height=120,
         )
 
