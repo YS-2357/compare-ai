@@ -682,7 +682,7 @@ def _send_prompt_eval(
                         }
                     )
                 if summary_rows:
-                    st.table(summary_rows)
+                    st.table(pd.DataFrame(summary_rows).reset_index(drop=True))
 
                 # 모델별 상세(평가자 근거 분리)
                 st.markdown("**모델별 상세 근거**")
