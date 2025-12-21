@@ -30,25 +30,31 @@ def _run_fastapi(host: str, port: int) -> None:
     Returns:
         None
     """
+    logger.debug("_run_fastapi:시작 host=%s port=%s", host, port)
     logger.info("FastAPI 서버 시작: http://%s:%s", host, port)
     config = uvicorn.Config(fastapi_app, host=host, port=port, log_level="info")
     server = uvicorn.Server(config)
     server.run()
+    logger.debug("_run_fastapi:종료 host=%s port=%s", host, port)
 
 
 def _ensure_streamlit_config() -> None:
     """Streamlit 실행에 필요한 최소 설정 파일을 생성한다."""
 
+    logger.debug("_ensure_streamlit_config:시작")
     config_dir = Path.home() / ".streamlit"
     config_dir.mkdir(parents=True, exist_ok=True)
     config_file = config_dir / "config.toml"
     if not config_file.exists():
         config_file.write_text("[browser]\ngatherUsageStats = false\n")
+        logger.info("_ensure_streamlit_config:config.toml 생성")
+    logger.debug("_ensure_streamlit_config:종료")
 
 
 def _run_streamlit(port: int, env: dict[str, str]) -> None:
     """지정된 포트에서 Streamlit 앱을 실행한다."""
 
+    logger.debug("_run_streamlit:시작 port=%s", port)
     _ensure_streamlit_config()
     cmd = [
         sys.executable,
@@ -62,11 +68,13 @@ def _run_streamlit(port: int, env: dict[str, str]) -> None:
     ]
     logger.info("Streamlit 실행: 포트 %s", port)
     subprocess.run(cmd, check=False, env=env)
+    logger.debug("_run_streamlit:종료 port=%s", port)
 
 
 def main() -> None:
     """FastAPI(Uvicorn)와 Streamlit(로컬용)을 부트스트랩한다."""
 
+    logger.debug("run_app main:시작")
     settings = get_settings()
     host = os.getenv("FASTAPI_HOST", settings.fastapi_host)
     fastapi_port = int(os.getenv("PORT") or settings.fastapi_port)
@@ -101,6 +109,8 @@ def main() -> None:
         _run_streamlit(streamlit_port, env)
     except KeyboardInterrupt:
         logger.warning("사용자 중단 감지, Streamlit 종료")
+    finally:
+        logger.debug("run_app main:종료")
 
 
 if __name__ == "__main__":

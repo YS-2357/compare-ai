@@ -38,24 +38,31 @@ MAX_CONTEXT_MESSAGES = settings_cache.max_context_messages  # 최근 메시지 �
 def merge_dicts(existing: dict | None, new: dict | None) -> dict:
     """LangGraph 상태 병합 시 딕셔너리를 병합한다."""
 
+    logger.debug("merge_dicts:시작 existing=%s new=%s", bool(existing), bool(new))
     merged: dict = dict(existing or {})
     merged.update(new or {})
+    logger.debug("merge_dicts:종료 size=%d", len(merged))
     return merged
 
 
 def merge_model_messages(existing: dict | None, new: dict | None) -> dict:
     """모델별 메시지 딕셔너리를 병합한다."""
 
+    logger.debug("merge_model_messages:시작 existing=%d new=%d", len(existing or {}), len(new or {}))
     merged: dict[str, list] = dict(existing or {})
     for model, messages in (new or {}).items():
         merged[model] = add_messages(merged.get(model, []), messages or [])
+    logger.debug("merge_model_messages:종료 models=%d", len(merged))
     return merged
 
 
 def resolve_model_name(state: GraphState, key: str, default: str) -> str:
+    logger.debug("resolve_model_name:시작 key=%s", key)
     overrides = state.get("model_overrides") or {}
     override = overrides.get(key)
-    return override or default
+    resolved = override or default
+    logger.info("resolve_model_name:결정 key=%s resolved=%s override=%s", key, resolved, bool(override))
+    return resolved
 
 
 class GraphState(TypedDict, total=False):
@@ -78,12 +85,16 @@ class GraphState(TypedDict, total=False):
 
 
 def default_active_models() -> list[str]:
-    return list(NODE_CONFIG.keys())
+    models = list(NODE_CONFIG.keys())
+    logger.debug("default_active_models:반환 count=%d", len(models))
+    return models
 
 
 def _model_label(node_name: str) -> str:
     meta = NODE_CONFIG.get(node_name)
-    return meta["label"] if meta else node_name
+    label = meta["label"] if meta else node_name
+    logger.debug("model_label:node=%s label=%s", node_name, label)
+    return label
 
 
 async def call_model_common(
@@ -96,7 +107,7 @@ async def call_model_common(
     """모델 호출 공통 루틴."""
 
     prompt_input = build_chat_prompt_input(state, label)
-    logger.debug("%s 호출 시작", label)
+    logger.debug("call_model_common:시작 label=%s", label)
     try:
         llm = llm_factory()
         content, source, status = await invoke_parsed(llm, prompt_input, label)
@@ -104,7 +115,7 @@ async def call_model_common(
         updated_msgs, summaries = await maybe_summarize_history(
             llm, state, label, [("assistant", msg_payload)], state.get("turn")
         )
-        logger.info("%s 응답 완료", label)
+        logger.info("call_model_common:성공 label=%s status=%s", label, status.get("status") if isinstance(status, dict) else status)
         return GraphState(
             model_messages={label: updated_msgs},
             model_summaries=summaries,
@@ -114,7 +125,7 @@ async def call_model_common(
         )
     except Exception as exc:
         status = build_status_from_error(exc)
-        logger.warning("%s 호출 실패: %s", label, exc)
+        logger.warning("call_model_common:실패 label=%s error=%s", label, exc)
         error_msg = f"응답 실패: {status.get('detail') or exc}"
         return GraphState(
             api_status={label: status},
@@ -122,6 +133,8 @@ async def call_model_common(
             raw_responses={label: error_msg},
             raw_sources={label: None},
         )
+    finally:
+        logger.debug("call_model_common:종료 label=%s", label)
 
 
 async def maybe_summarize_history(
@@ -133,6 +146,7 @@ async def maybe_summarize_history(
     - 요약은 model_summaries[label]에 1개만 유지하고, 히스토리는 최근 메시지만 보존
     """
 
+    logger.debug("maybe_summarize_history:시작 label=%s turn=%s", label, turn)
     existing = (state.get("model_messages") or {}).get(label, [])
     updated = add_messages(existing, new_messages)
     summaries = state.get("model_summaries") or {}
@@ -159,6 +173,7 @@ async def maybe_summarize_history(
             preview_text(summary),
         )
     # 컨텍스트 부풀림을 막기 위해 최근 메시지만 유지
+    logger.debug("maybe_summarize_history:종료 label=%s msgs=%d summaries=%d", label, len(recent_messages), len(summaries))
     return recent_messages, summaries
 
 
@@ -171,6 +186,7 @@ def build_chat_prompt_input(state: GraphState, label: str) -> str:
     history_text = render_chat_history(state, label, max_messages=MAX_CONTEXT_MESSAGES)
     current_question = ""
     user_messages = state.get("user_messages") or []
+    logger.debug("build_chat_prompt_input:시작 label=%s user_msgs=%d", label, len(user_messages))
     for message in reversed(user_messages):
         # user 역할의 최신 메시지가 곧 현재 질문이다.
         if isinstance(message, (list, tuple)) and len(message) == 2 and message[0] == "user":
@@ -179,18 +195,21 @@ def build_chat_prompt_input(state: GraphState, label: str) -> str:
         if isinstance(message, dict) and message.get("role") == "user":
             current_question = str(message.get("content", ""))
             break
-    return (
+    prompt_text = (
         "[Conversation History]\n"
         f"{history_text}\n\n"
         "[Current Question]\n"
         f"{current_question}\n\n"
         "If anything is ambiguous, prefer the most recent topic or flow. Respond only in Korean."
     )
+    logger.debug("build_chat_prompt_input:종료 label=%s question_preview=%s", label, preview_text(current_question))
+    return prompt_text
 
 
 def _extract_source(extras: dict[str, Any] | None) -> str | None:
     """추가 메타에서 출처 URL을 추출한다."""
 
+    logger.debug("extract_source:시작 extras=%s", bool(extras))
     def _maybe_url(value: Any) -> str | None:
         if isinstance(value, str):
             match = re.search(r"https?://\S+", value)
@@ -212,25 +231,30 @@ def _extract_source(extras: dict[str, Any] | None) -> str | None:
         for item in citations:
             url = _maybe_url(item)
             if url:
+                logger.info("extract_source:citations hit url=%s", url)
                 return url
     search_results = extras.get("search_results")
     if isinstance(search_results, list):
         for item in search_results:
             url = _maybe_url(item)
             if url:
+                logger.info("extract_source:search_results hit url=%s", url)
                 return url
     sources = extras.get("sources")
     if isinstance(sources, list):
         for item in sources:
             url = _maybe_url(item)
             if url:
+                logger.info("extract_source:sources hit url=%s", url)
                 return url
+    logger.debug("extract_source:종료 url=None")
     return None
 
 
 async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, str | None, dict[str, Any]]:
     """LLM을 한 번 호출한 뒤 파서를 적용하고, 실패하면 원문을 그대로 사용한다."""
 
+    logger.debug("invoke_parsed:시작 label=%s", label)
     parser = PydanticOutputParser(pydantic_object=Answer)
     prompt = build_chat_prompt()
     chain = prompt | llm
@@ -245,21 +269,26 @@ async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, s
         source = parsed.source or _extract_source(getattr(parsed, "model_extra", None))
         if not source:
             source = _extract_source(getattr(response, "response_metadata", None))
+        logger.info("invoke_parsed:파싱 성공 label=%s status=%s source=%s", label, status.get("status"), source)
     except Exception:
         content = raw_text
         source = _extract_source(getattr(response, "response_metadata", None))
+        logger.warning("invoke_parsed:파싱 실패 label=%s 원문사용", label)
+    logger.debug("invoke_parsed:종료 label=%s content_preview=%s", label, preview_text(content))
     return content, source, status
 
 
 def format_response_message(label: str, payload: Any) -> tuple[str, str]:
     """메시지 로그에 저장할 간단한 (role, content) 튜플을 생성한다."""
 
+    logger.debug("format_response_message:생성 label=%s", label)
     return ("assistant", f"[{label}] {payload}")
 
 
 def init_question(state: GraphState) -> GraphState:
     """그래프 초기 상태를 검증하고 기본 메시지를 설정한다."""
 
+    logger.debug("init_question:시작")
     max_turns = state.get("max_turns") or DEFAULT_MAX_TURNS
     active_models = state.get("active_models") or list(NODE_CONFIG.keys())
     # 유저/모델 메시지 초기화
@@ -277,7 +306,7 @@ def init_question(state: GraphState) -> GraphState:
     elif isinstance(last_user, dict):
         preview_target = last_user.get("content", "")
     logger.debug("질문 초기화: %s", preview_text(preview_target))
-    return GraphState(
+    result = GraphState(
         max_turns=max_turns,
         turn=turn_value,
         active_models=active_models,
@@ -289,15 +318,22 @@ def init_question(state: GraphState) -> GraphState:
         model_summaries=model_summaries,
         model_overrides=state.get("model_overrides") or {},
     )
+    logger.debug("init_question:종료 turn=%s max_turns=%s active_models=%d", turn_value, max_turns, len(active_models))
+    return result
 
 
 async def invoke_llm_async(llm: Any, question: str) -> Any:
     """주어진 LLM에서 비동기 호출을 수행한다."""
 
+    logger.debug("invoke_llm_async:시작 question_preview=%s", preview_text(question))
     if hasattr(llm, "ainvoke"):
-        return await llm.ainvoke(question)
+        result = await llm.ainvoke(question)
+        logger.debug("invoke_llm_async:종료 mode=ainvoke")
+        return result
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, llm.invoke, question)
+    result = await loop.run_in_executor(None, llm.invoke, question)
+    logger.debug("invoke_llm_async:종료 mode=executor")
+    return result
 
 
 async def call_openai(state: GraphState) -> GraphState:
@@ -305,8 +341,11 @@ async def call_openai(state: GraphState) -> GraphState:
 
     settings = get_settings()
     model_name = resolve_model_name(state, "openai", settings.model_openai)
+    logger.debug("call_openai:시작 model=%s", model_name)
     llm_factory = lambda: ChatOpenAI(model=model_name)
-    return await call_model_common("OpenAI", state, llm_factory)
+    result = await call_model_common("OpenAI", state, llm_factory)
+    logger.debug("call_openai:종료")
+    return result
 
 
 async def call_gemini(state: GraphState) -> GraphState:
@@ -314,8 +353,11 @@ async def call_gemini(state: GraphState) -> GraphState:
 
     settings = get_settings()
     model_name = resolve_model_name(state, "gemini", settings.model_gemini)
+    logger.debug("call_gemini:시작 model=%s", model_name)
     llm_factory = lambda: ChatGoogleGenerativeAI(model=model_name, temperature=0)
-    return await call_model_common("Gemini", state, llm_factory)
+    result = await call_model_common("Gemini", state, llm_factory)
+    logger.debug("call_gemini:종료")
+    return result
 
 
 async def call_anthropic(state: GraphState) -> GraphState:
@@ -323,8 +365,11 @@ async def call_anthropic(state: GraphState) -> GraphState:
 
     settings = get_settings()
     model_name = resolve_model_name(state, "anthropic", settings.model_anthropic)
+    logger.debug("call_anthropic:시작 model=%s", model_name)
     llm_factory = lambda: ChatAnthropic(model=model_name, temperature=0)
-    return await call_model_common("Anthropic", state, llm_factory)
+    result = await call_model_common("Anthropic", state, llm_factory)
+    logger.debug("call_anthropic:종료")
+    return result
 
 
 async def call_upstage(state: GraphState) -> GraphState:
@@ -332,8 +377,11 @@ async def call_upstage(state: GraphState) -> GraphState:
 
     settings = get_settings()
     model_name = resolve_model_name(state, "upstage", settings.model_upstage)
+    logger.debug("call_upstage:시작 model=%s", model_name)
     llm_factory = lambda: ChatUpstage(model=model_name)
-    return await call_model_common("Upstage", state, llm_factory)
+    result = await call_model_common("Upstage", state, llm_factory)
+    logger.debug("call_upstage:종료")
+    return result
 
 
 async def call_perplexity(state: GraphState) -> GraphState:
@@ -348,7 +396,10 @@ async def call_perplexity(state: GraphState) -> GraphState:
         return ChatPerplexity(temperature=0, model=model_name, pplx_api_key=pplx_api_key)
 
     msg_transform = lambda content, source: content if not source else f"{content} (src: {source})"
-    return await call_model_common("Perplexity", state, llm_factory, message_transform=msg_transform)
+    logger.debug("call_perplexity:시작")
+    result = await call_model_common("Perplexity", state, llm_factory, message_transform=msg_transform)
+    logger.debug("call_perplexity:종료")
+    return result
 
 
 async def call_mistral(state: GraphState) -> GraphState:
@@ -361,7 +412,10 @@ async def call_mistral(state: GraphState) -> GraphState:
         model_name = resolve_model_name(state, "mistral", settings.model_mistral)
         return ChatMistralAI(model=model_name, temperature=0)
 
-    return await call_model_common("Mistral", state, llm_factory)
+    logger.debug("call_mistral:시작")
+    result = await call_model_common("Mistral", state, llm_factory)
+    logger.debug("call_mistral:종료")
+    return result
 
 
 async def call_groq(state: GraphState) -> GraphState:
@@ -374,7 +428,10 @@ async def call_groq(state: GraphState) -> GraphState:
         model_name = resolve_model_name(state, "groq", settings.model_groq)
         return ChatGroq(model=model_name, temperature=0)
 
-    return await call_model_common("Groq", state, llm_factory)
+    logger.debug("call_groq:시작")
+    result = await call_model_common("Groq", state, llm_factory)
+    logger.debug("call_groq:종료")
+    return result
 
 
 async def call_cohere(state: GraphState) -> GraphState:
@@ -387,7 +444,10 @@ async def call_cohere(state: GraphState) -> GraphState:
         model_name = resolve_model_name(state, "cohere", settings.model_cohere)
         return ChatCohere(model=model_name, temperature=0)
 
-    return await call_model_common("Cohere", state, llm_factory)
+    logger.debug("call_cohere:시작")
+    result = await call_model_common("Cohere", state, llm_factory)
+    logger.debug("call_cohere:종료")
+    return result
 
 
 NODE_CONFIG: dict[str, dict[str, str]] = {
@@ -405,6 +465,7 @@ NODE_CONFIG: dict[str, dict[str, str]] = {
 def dispatch_llm_calls(state: GraphState) -> list[Send]:
     """Send API를 활용해 각 LLM 노드를 동시에 실행할 태스크 목록을 생성한다."""
 
+    logger.debug("dispatch_llm_calls:시작")
     user_messages = state.get("user_messages") or []
     if not user_messages:
         raise ValueError("질문이 비어 있습니다.")
@@ -416,7 +477,9 @@ def dispatch_llm_calls(state: GraphState) -> list[Send]:
     elif isinstance(last_user, dict):
         preview_target = last_user.get("content", "")
     logger.info("LLM fan-out 실행: %s | 질문: %s", ", ".join(active_models), preview_text(preview_target))
-    return [Send(node_name, state) for node_name in active_models]
+    sends = [Send(node_name, state) for node_name in active_models]
+    logger.debug("dispatch_llm_calls:종료 tasks=%d", len(sends))
+    return sends
 
 
 __all__ = [

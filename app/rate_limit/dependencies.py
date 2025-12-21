@@ -13,14 +13,18 @@ logger = get_logger(__name__)
 
 
 def _seconds_until_midnight_utc() -> int:
+    logger.debug("seconds_until_midnight:시작")
     now = datetime.now(timezone.utc)
     tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    return int((tomorrow - now).total_seconds())
+    result = int((tomorrow - now).total_seconds())
+    logger.debug("seconds_until_midnight:종료 secs=%s", result)
+    return result
 
 
 async def enforce_daily_limit(user_id: str, limit: int) -> int:
     """사용자별 일일 호출 제한을 적용한다."""
 
+    logger.debug("enforce_daily_limit:시작 user=%s limit=%s", user_id, limit)
     try:
         client = get_rate_limiter()
         key = f"usage:{user_id}:{datetime.now(timezone.utc).date().isoformat()}"
@@ -30,7 +34,9 @@ async def enforce_daily_limit(user_id: str, limit: int) -> int:
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="daily usage limit exceeded",
             )
-        return max(0, limit - count)
+        remaining = max(0, limit - count)
+        logger.info("enforce_daily_limit:성공 user=%s remaining=%s", user_id, remaining)
+        return remaining
     except HTTPException:
         raise
     except Exception as exc:

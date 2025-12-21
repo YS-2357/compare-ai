@@ -20,19 +20,27 @@ SUMMARY_PARSER = StrOutputParser()
 def preview_text(text: str, limit: int = 80) -> str:
     """긴 문자열을 로그에 표시하기 위한 요약 버전으로 변환한다."""
 
+    logger.debug("preview_text:시작 len=%d limit=%d", len(text or ""), limit)
     compact = " ".join(text.split())
-    return compact[:limit] + ("…" if len(compact) > limit else "")
+    result = compact[:limit] + ("…" if len(compact) > limit else "")
+    logger.debug("preview_text:종료 result_len=%d", len(result))
+    return result
 
 
 async def summarize_content(llm: Any, content: str, label: str) -> str:
     """모델 응답을 짧게 요약한다."""
 
+    logger.debug("summarize_content:시작 label=%s len=%d", label, len(content or ""))
     try:
         chain = SUMMARY_PROMPT | llm | SUMMARY_PARSER
-        return await chain.ainvoke({"answer": content})
+        summary = await chain.ainvoke({"answer": content})
+        logger.info("summarize_content:성공 label=%s preview=%s", label, preview_text(summary))
+        return summary
     except Exception as exc:
         logger.warning("%s 요약 실패: %s", label, exc)
-        return content[:200]
+        fallback = content[:200]
+        logger.debug("summarize_content:종료 fallback 사용")
+        return fallback
 
 
 __all__ = ["preview_text", "summarize_content"]

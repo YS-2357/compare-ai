@@ -11,6 +11,9 @@ from fastapi import HTTPException, status
 from jose import JWTError, jwt
 
 from app.config import get_settings
+from app.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class AuthenticatedUser(TypedDict):
@@ -41,14 +44,19 @@ class _JWKSCache:
         self._http_timeout = http_timeout
 
     async def get_key(self, kid: str) -> dict[str, Any]:
+        logger.debug("JWKS:get_key 시작 kid=%s", kid)
         async with self._lock:
             if self._keys is None or self._expires_at <= asyncio.get_event_loop().time():
                 await self._refresh()
             if not self._keys or kid not in self._keys:
+                logger.warning("JWKS:get_key 실패 kid=%s", kid)
                 raise KeyError("JWKS key not found")
-            return self._keys[kid]
+            key = self._keys[kid]
+            logger.debug("JWKS:get_key 성공 kid=%s", kid)
+            return key
 
     async def _refresh(self) -> None:
+        logger.debug("JWKS:refresh 시작")
         headers = None
         params = None
         if self.api_key:
@@ -72,11 +80,13 @@ class _JWKSCache:
                     keys = {item["kid"]: item for item in data.get("keys", []) if "kid" in item}
                     self._keys = keys
                     self._expires_at = asyncio.get_event_loop().time() + self.cache_ttl
+                    logger.info("JWKS:refresh 성공 url=%s keys=%d", url, len(keys))
                     return
                 except Exception as exc:  # pragma: no cover - fallback 케이스
                     last_error = exc
                     continue
             if last_error:
+                logger.error("JWKS:refresh 실패 마지막 오류=%s", last_error)
                 raise last_error
 
 
@@ -89,10 +99,12 @@ class SupabaseVerifier:
     issuer: str
 
     async def verify(self, token: str) -> AuthenticatedUser:
+        logger.debug("SupabaseVerifier:verify 시작")
         try:
             header = jwt.get_unverified_header(token)
             kid = header.get("kid")
             if not kid:
+                logger.warning("SupabaseVerifier:헤더 kid 없음")
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token header")
             key = await self.jwks_cache.get_key(kid)
             claims = jwt.decode(
@@ -103,14 +115,17 @@ class SupabaseVerifier:
                 issuer=self.issuer,
             )
         except (JWTError, KeyError) as exc:
+            logger.error("SupabaseVerifier:검증 실패 %s", exc)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid or expired token") from exc
 
-        return AuthenticatedUser(
+        user = AuthenticatedUser(
             sub=str(claims.get("sub")),
             email=claims.get("email"),
             role=claims.get("role"),
             bypass=False,
         )
+        logger.info("SupabaseVerifier:검증 성공 sub=%s", user["sub"])
+        return user
 
 
 _verifier: SupabaseVerifier | None = None
@@ -122,6 +137,7 @@ def get_verifier() -> SupabaseVerifier:
 
     global _verifier
     if _verifier is not None:
+        logger.debug("get_verifier:캐시 사용")
         return _verifier
 
     settings = get_settings()
@@ -139,6 +155,7 @@ def get_verifier() -> SupabaseVerifier:
         http_timeout=settings.supabase_http_timeout,
     )
     _verifier = SupabaseVerifier(jwks_cache, audience=settings.supabase_aud, issuer=issuer)
+    logger.info("get_verifier:생성 완료 issuer=%s", issuer)
     return _verifier
 
 
@@ -155,30 +172,40 @@ class SupabaseAuthClient:
 
     async def signup(self, email: str, password: str) -> dict[str, Any]:
         url = f"{self.base_url}/auth/v1/signup"
+        logger.debug("SupabaseAuthClient:signup 시작 email=%s", email)
         try:
             resp = await self._client.post(url, json={"email": email, "password": password}, headers=self._headers())
             resp.raise_for_status()
-            return resp.json()
+            data = resp.json()
+            logger.info("SupabaseAuthClient:signup 성공 email=%s", email)
+            return data
         except httpx.HTTPStatusError as exc:
             detail = exc.response.json() if exc.response else {"message": str(exc)}
+            logger.error("SupabaseAuthClient:signup 실패 email=%s detail=%s", email, detail)
             raise HTTPException(status_code=exc.response.status_code if exc.response else 400, detail=detail)
 
     async def signin(self, email: str, password: str) -> dict[str, Any]:
         url = f"{self.base_url}/auth/v1/token?grant_type=password"
+        logger.debug("SupabaseAuthClient:signin 시작 email=%s", email)
         try:
             resp = await self._client.post(
                 url, json={"email": email, "password": password}, headers=self._headers()
             )
             resp.raise_for_status()
-            return resp.json()
+            data = resp.json()
+            logger.info("SupabaseAuthClient:signin 성공 email=%s", email)
+            return data
         except httpx.HTTPStatusError as exc:
             detail = exc.response.json() if exc.response else {"message": str(exc)}
+            logger.error("SupabaseAuthClient:signin 실패 email=%s detail=%s", email, detail)
             raise HTTPException(status_code=exc.response.status_code if exc.response else 400, detail=detail)
 
     async def aclose(self) -> None:
         """재사용 중인 HTTP 클라이언트를 종료한다."""
 
+        logger.debug("SupabaseAuthClient:aclose 시작")
         await self._client.aclose()
+        logger.debug("SupabaseAuthClient:aclose 종료")
 
 
 def get_auth_client() -> "SupabaseAuthClient":
@@ -186,6 +213,7 @@ def get_auth_client() -> "SupabaseAuthClient":
 
     global _auth_client
     if _auth_client is not None:
+        logger.debug("get_auth_client:캐시 사용")
         return _auth_client
 
     settings = get_settings()
@@ -196,6 +224,7 @@ def get_auth_client() -> "SupabaseAuthClient":
         settings.supabase_anon_key,
         timeout=settings.supabase_http_timeout,
     )
+    logger.info("get_auth_client:생성 완료 base_url=%s", settings.supabase_url)
     return _auth_client
 
 
@@ -206,6 +235,8 @@ async def shutdown_auth_client() -> None:
     if _auth_client is None:
         return
     try:
+        logger.debug("shutdown_auth_client:시작")
         await _auth_client.aclose()
     finally:
         _auth_client = None
+        logger.info("shutdown_auth_client:완료")

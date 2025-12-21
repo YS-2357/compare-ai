@@ -27,11 +27,16 @@ class Answer(BaseModel):
 def message_to_text(message: Any) -> str | None:
     """여러 형태의 메시지를 role: content 문자열로 변환한다."""
 
+    logger.debug("message_to_text:시작 type=%s", type(message).__name__)
     if isinstance(message, (list, tuple)) and len(message) == 2:
         role, content = message
-        return f"{role}: {content}"
+        result = f"{role}: {content}"
+        logger.debug("message_to_text:종료 preview=%s", preview_text(result))
+        return result
     if isinstance(message, dict):
-        return f"{message.get('role')}: {message.get('content')}"
+        result = f"{message.get('role')}: {message.get('content')}"
+        logger.debug("message_to_text:종료 preview=%s", preview_text(result))
+        return result
     if isinstance(message, BaseMessage):
         role = getattr(message, "type", message.__class__.__name__)
         content = message.content
@@ -43,11 +48,15 @@ def message_to_text(message: Any) -> str | None:
                 else:
                     parts.append(str(item))
             content = " ".join([p for p in parts if p])
-        return f"{role}: {content}"
+        result = f"{role}: {content}"
+        logger.debug("message_to_text:종료 preview=%s", preview_text(result))
+        return result
+    logger.debug("message_to_text:종료 preview=None")
     return None
 
 
 def build_chat_prompt() -> ChatPromptTemplate:
+    logger.debug("build_chat_prompt:시작")
     parser = PydanticOutputParser(pydantic_object=Answer)
     instructions = parser.get_format_instructions()
     system = (
@@ -56,12 +65,14 @@ def build_chat_prompt() -> ChatPromptTemplate:
         "If additional context is needed, briefly note the limitation. "
         "{format_instructions}"
     )
-    return ChatPromptTemplate.from_messages(
+    prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system),
             ("user", "{question}"),
         ]
     ).partial(format_instructions=instructions)
+    logger.debug("build_chat_prompt:종료")
+    return prompt
 
 
 def render_chat_history(state: Any, label: str, max_messages: int = 10) -> str:
@@ -107,6 +118,7 @@ def render_chat_history(state: Any, label: str, max_messages: int = 10) -> str:
         len(history_text),
         preview_text(history_text),
     )
+    logger.debug("render_chat_history:종료 label=%s", label)
     return history_text
 
 
@@ -118,6 +130,7 @@ def build_chat_prompt_input(state: Any, label: str) -> str:
     """
 
     max_context = settings_cache.max_context_messages
+    logger.debug("build_chat_prompt_input:시작 label=%s max_context=%d", label, max_context)
     history_text = render_chat_history(state, label, max_messages=max_context)
     user_msgs = state.get("user_messages") or []
     current_question = ""
@@ -153,6 +166,7 @@ def build_chat_prompt_input(state: Any, label: str) -> str:
         len(prompt),
         preview_text(prompt),
     )
+    logger.debug("build_chat_prompt_input:종료 label=%s mode=%s", label, mode)
     return prompt
 
 

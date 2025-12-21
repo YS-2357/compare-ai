@@ -52,6 +52,7 @@ class ScoreList(BaseModel):
 def _llm_factory(label: str) -> Any:
     """모델 라벨에 맞는 LLM 팩토리를 반환한다."""
 
+    logger.debug("_llm_factory:시작 label=%s", label)
     sc = settings_cache
     factories = {
         "OpenAI": lambda: ChatOpenAI(model=sc.model_openai),
@@ -65,41 +66,53 @@ def _llm_factory(label: str) -> Any:
     }
     if label not in factories:
         raise ValueError(f"지원하지 않는 모델 라벨: {label}")
-    return factories[label]()
+    llm = factories[label]()
+    logger.debug("_llm_factory:종료 label=%s", label)
+    return llm
 
 
 def _select_eval_llm(active_labels: list[str]) -> tuple[Any, str]:
     """평가에 사용할 LLM과 모델명을 선택한다."""
 
+    logger.debug("_select_eval_llm:시작 labels=%s", active_labels)
     sc = settings_cache
     for label in active_labels:
         if label == "OpenAI":
             model_name = LATEST_EVAL_MODELS.get("OpenAI") or sc.model_openai
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatOpenAI(model=model_name), model_name
         if label == "Gemini":
             model_name = LATEST_EVAL_MODELS.get("Gemini") or sc.model_gemini
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatGoogleGenerativeAI(model=model_name, temperature=0), model_name
         if label == "Anthropic":
             model_name = LATEST_EVAL_MODELS.get("Anthropic") or sc.model_anthropic
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatAnthropic(model=model_name), model_name
         if label == "Perplexity":
             model_name = LATEST_EVAL_MODELS.get("Perplexity") or sc.model_perplexity
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatPerplexity(model=model_name), model_name
         if label == "Upstage":
             model_name = LATEST_EVAL_MODELS.get("Upstage") or sc.model_upstage
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatUpstage(model=model_name), model_name
         if label == "Mistral":
             model_name = LATEST_EVAL_MODELS.get("Mistral") or sc.model_mistral
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatMistralAI(model=model_name), model_name
         if label == "Groq":
             model_name = LATEST_EVAL_MODELS.get("Groq") or sc.model_groq
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatGroq(model=model_name), model_name
         if label == "Cohere":
             model_name = LATEST_EVAL_MODELS.get("Cohere") or sc.model_cohere
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatCohere(model=model_name), model_name
 
     # fallback: OpenAI 기본
     model_name = LATEST_EVAL_MODELS.get("OpenAI") or sc.model_openai
+    logger.info("_select_eval_llm:기본 선택 evaluator=OpenAI model=%s", model_name)
     return ChatOpenAI(model=model_name), model_name
 
 
@@ -109,17 +122,23 @@ DEFAULT_PROMPT = "[Question]\n{question}\n\n답변은 한국어로 작성하세�
 def _build_model_prompt(question: str, prompt: str | None) -> str:
     """모든 모델에 동일하게 적용할 프롬프트를 생성한다."""
 
+    logger.debug("_build_model_prompt:시작")
     base = prompt or DEFAULT_PROMPT
     try:
-        return base.format(question=question)
+        result = base.format(question=question)
+        logger.debug("_build_model_prompt:종료 format 성공")
+        return result
     except Exception:
         # 포맷 실패 시 안전하게 합치기
-        return f"{base}\n\n[Question]\n{question}"
+        fallback = f"{base}\n\n[Question]\n{question}"
+        logger.warning("_build_model_prompt:포맷 실패, fallback 사용")
+        return fallback
 
 
 async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
     """단일 모델 호출 및 파싱 실패 대비."""
 
+    logger.debug("_call_single_model:시작 label=%s", label)
     start = time.perf_counter()
     try:
         llm = _llm_factory(label)
@@ -127,7 +146,7 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
         status = build_status_from_response(response)
         content = getattr(response, "content", None) or str(response)
         elapsed_ms = int((time.perf_counter() - start) * 1000)
-        logger.debug("%s 호출 성공 (elapsed_ms=%s)", label, elapsed_ms)
+        logger.info("%s 호출 성공 (elapsed_ms=%s)", label, elapsed_ms)
         return {
             "model": label,
             "answer": content,
@@ -149,11 +168,14 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
             "source": None,
             "error": True,
         }
+    finally:
+        logger.debug("_call_single_model:종료 label=%s", label)
 
 
 def _build_eval_prompt(question: str, anonymized: list[tuple[str, str]]) -> ChatPromptTemplate:
     """블라인드 평가 프롬프트를 생성한다."""
 
+    logger.debug("_build_eval_prompt:시작 answers=%d", len(anonymized))
     examples = "\n".join([f"ID {anon_id}:\n{content}\n" for anon_id, content in anonymized])
     system = (
         "You are grading multiple anonymous answers to the same question.\n"
@@ -171,6 +193,7 @@ def _build_eval_prompt(question: str, anonymized: list[tuple[str, str]]) -> Chat
             ("user", user),
         ]
     )
+    logger.debug("_build_eval_prompt:종료")
     return template
 
 
@@ -179,6 +202,7 @@ async def _evaluate_answers(
 ) -> dict[str, Any]:
     """단일 평가 모델로 모든 응답을 블라인드 평가."""
 
+    logger.debug("_evaluate_answers:시작 evaluator=%s answers=%d", evaluator_label, len(results))
     # 익명 ID 매핑
     anonymized = [(f"resp_{i+1}", r.get("answer", "")) for i, r in enumerate(results)]
     id_to_model = {f"resp_{i+1}": r["model"] for i, r in enumerate(results)}
@@ -255,22 +279,28 @@ async def _evaluate_answers(
             "status": {"status": "error", "detail": str(exc), "model": eval_model_name},
             "elapsed_ms": elapsed_ms,
         }
+    finally:
+        logger.debug("_evaluate_answers:종료 evaluator=%s", evaluator_label)
 
 
 def _build_score_table(scores: list[dict[str, Any]]) -> str:
     """Markdown 테이블을 생성한다."""
 
+    logger.debug("_build_score_table:시작 rows=%d", len(scores))
     header = "| Model | Score | Rank | Rationale |\n|---|---|---|---|"
     rows = [
         f"| {s.get('model','-')} | {s.get('score','-')} | {s.get('rank','-')} | {s.get('rationale','-')} |"
         for s in scores
     ]
-    return "\n".join([header] + rows)
+    table = "\n".join([header] + rows)
+    logger.debug("_build_score_table:종료")
+    return table
 
 
 def _aggregate_scores(results: list[dict[str, Any]], evaluations: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """여러 평가자의 점수를 모델별로 집계."""
 
+    logger.debug("_aggregate_scores:시작 results=%d evaluations=%d", len(results), len(evaluations))
     try:
         targets = [r["model"] for r in results]
         aggregated: list[dict[str, Any]] = []
@@ -303,6 +333,7 @@ def _aggregate_scores(results: list[dict[str, Any]], evaluations: list[dict[str,
         )
         for idx, item in enumerate(sorted_items, start=1):
             item["rank"] = idx
+        logger.debug("_aggregate_scores:종료 aggregated=%d", len(sorted_items))
         return sorted_items
     except Exception as exc:
         logger.warning("집계 실패: %s", exc)
@@ -325,7 +356,9 @@ async def stream_prompt_eval(
 ) -> AsyncIterator[dict[str, Any]]:
     """모델별 프롬프트 적용 + 블라인드 평가를 스트리밍한다."""
 
+    logger.debug("stream_prompt_eval:시작 question=%s", question[:50] if question else "")
     if not question or not question.strip():
+        logger.error("stream_prompt_eval:질문 비어있음")
         raise ValueError("질문을 입력해주세요.")
 
     try:
@@ -415,6 +448,8 @@ async def stream_prompt_eval(
     except Exception as exc:
         logger.error("PromptEval 전체 실패: %s", exc)
         yield {"type": "error", "message": str(exc), "model": None, "node": "prompt_eval"}
+    finally:
+        logger.debug("stream_prompt_eval:종료 question=%s", question[:50] if question else "")
 
 
 __all__ = ["stream_prompt_eval"]

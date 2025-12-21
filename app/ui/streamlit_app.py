@@ -10,8 +10,10 @@ from typing import Any
 import requests
 import streamlit as st
 from dotenv import load_dotenv
+from app.logger import get_logger
 
 load_dotenv()
+logger = get_logger(__name__)
 
 FASTAPI_URL_FILE = Path(__file__).resolve().parents[2] / ".fastapi_url"
 DEFAULT_FASTAPI_BASE = FASTAPI_URL_FILE.read_text().strip() if FASTAPI_URL_FILE.exists() else ""
@@ -66,9 +68,11 @@ st.set_page_config(page_title="Compare-AI", page_icon="🤖", layout="wide")
 
 
 def _default_model(provider: str) -> str:
+    logger.debug("_default_model:시작 provider=%s", provider)
     meta = MODEL_OPTIONS[provider]
     env_value = os.getenv(meta["env"])
     if env_value:
+        logger.info("_default_model:환경변수 사용 provider=%s model=%s", provider, env_value)
         return env_value
     # 가벼운/저렴한 모델을 기본값으로 선택(리스트에 없으면 첫 번째)
     cheap_candidates = [
@@ -86,20 +90,26 @@ def _default_model(provider: str) -> str:
     ]
     for candidate in cheap_candidates:
         if candidate in meta["choices"]:
+            logger.debug("_default_model:저가형 선택 provider=%s model=%s", provider, candidate)
             return candidate
-    return meta["choices"][0]
+    chosen = meta["choices"][0]
+    logger.debug("_default_model:기본 선택 provider=%s model=%s", provider, chosen)
+    return chosen
 
 
 def _ensure_model_selections() -> None:
+    logger.debug("_ensure_model_selections:시작")
     defaults = {key: _default_model(key) for key in MODEL_OPTIONS}
     selections = st.session_state.get("model_selections") or {}
     merged = {}
     for key, default in defaults.items():
         merged[key] = selections.get(key, default)
     st.session_state["model_selections"] = merged
+    logger.debug("_ensure_model_selections:종료 selections=%s", merged)
 
 
 def _render_model_selector() -> None:
+    logger.debug("_render_model_selector:시작")
     _ensure_model_selections()
     st.subheader("모델 선택")
     for key, meta in MODEL_OPTIONS.items():
@@ -115,9 +125,11 @@ def _render_model_selector() -> None:
             key=f"model_select_{key}",
         )
         st.session_state["model_selections"][key] = selection
+    logger.debug("_render_model_selector:종료")
 
 
 def _load_base_url() -> str:
+    logger.debug("_load_base_url:시작")
     saved = (
         st.session_state.get("fastapi_base_url")
         or DEFAULT_FASTAPI_BASE
@@ -125,18 +137,26 @@ def _load_base_url() -> str:
         or st.secrets.get("FASTAPI_URL", "")
     )
     if saved.endswith("/api/ask"):
-        return saved.rsplit("/api/ask", 1)[0]
-    return saved
+        base = saved.rsplit("/api/ask", 1)[0]
+    else:
+        base = saved
+    logger.debug("_load_base_url:종료 base=%s", base)
+    return base
 
 
 def _get_usage_limit() -> str:
-    return os.getenv("DAILY_USAGE_LIMIT") or "3"
+    value = os.getenv("DAILY_USAGE_LIMIT") or "3"
+    logger.debug("_get_usage_limit:limit=%s", value)
+    return value
 
 
 def _usage_limit_int() -> int:
     try:
-        return int(_get_usage_limit())
+        result = int(_get_usage_limit())
+        logger.debug("_usage_limit_int:성공 value=%s", result)
+        return result
     except Exception:
+        logger.warning("_usage_limit_int:변환 실패, 기본값 3 사용")
         return 3
 
 
@@ -149,11 +169,15 @@ def _sync_usage_from_headers(resp: requests.Response) -> None:
         st.session_state["usage_limit"] = int(limit)
     if remaining is not None and remaining.isdigit():
         st.session_state["usage_remaining"] = int(remaining)
+    logger.debug(
+        "_sync_usage_from_headers:limit=%s remaining=%s", st.session_state.get("usage_limit"), st.session_state.get("usage_remaining")
+    )
 
 
 def _build_history_payload(chat_log: list[dict[str, Any]]) -> list[dict[str, str]]:
     """기존 대화 로그를 LangGraph history 페이로드로 변환한다."""
 
+    logger.debug("_build_history_payload:시작 entries=%d", len(chat_log or []))
     history_payload: list[dict[str, str]] = []
     for entry in chat_log or []:
         q = entry.get("question")
@@ -171,12 +195,14 @@ def _build_history_payload(chat_log: list[dict[str, Any]]) -> list[dict[str, str
                     model_answers[model] = ans
         for model, ans in model_answers.items():
             history_payload.append({"role": "assistant", "model": model, "content": ans})
+    logger.debug("_build_history_payload:종료 payload_len=%d", len(history_payload))
     return history_payload
 
 
 def _update_usage_after_response(resp: requests.Response, *, admin_mode: bool) -> None:
     """응답 이후 사용량 카운터를 갱신한다."""
 
+    logger.debug("_update_usage_after_response:시작 admin_mode=%s status=%s", admin_mode, resp.status_code)
     if admin_mode:
         st.session_state["usage_remaining"] = None
         return
@@ -186,6 +212,9 @@ def _update_usage_after_response(resp: requests.Response, *, admin_mode: bool) -
         if "X-Usage-Remaining" not in resp.headers:
             new_value = max(0, st.session_state.get("usage_remaining", _usage_limit_int()) - 1)
             st.session_state["usage_remaining"] = new_value
+    logger.debug(
+        "_update_usage_after_response:종료 usage_remaining=%s", st.session_state.get("usage_remaining")
+    )
 
 
 def _append_chat_log_entry(
@@ -196,6 +225,7 @@ def _append_chat_log_entry(
 ) -> None:
     """대화 로그에 새 엔트리를 추가한다."""
 
+    logger.debug("_append_chat_log_entry:시작 question=%s answers=%d events=%d", question, len(answers), len(events))
     st.session_state["chat_log"].append(
         {
             "question": question,
@@ -204,11 +234,13 @@ def _append_chat_log_entry(
             "events": events,
         }
     )
+    logger.debug("_append_chat_log_entry:종료 total=%d", len(st.session_state["chat_log"]))
 
 
 def _status_to_emoji(status_val: Any) -> str:
     """상태 코드/문자열을 이모지로 변환한다."""
 
+    logger.debug("_status_to_emoji:시작 status=%s", status_val)
     code = None
     if isinstance(status_val, dict):
         code = status_val.get("status")
@@ -231,17 +263,22 @@ def _status_to_emoji(status_val: Any) -> str:
     except Exception:
         code_int = None
     if code_int is None:
+        logger.debug("_status_to_emoji:종료 emoji=❔")
         return "❔"
     if code_int >= 500:
+        logger.debug("_status_to_emoji:종료 emoji=❌")
         return "❌"
     if code_int >= 400:
+        logger.debug("_status_to_emoji:종료 emoji=⚠️")
         return "⚠️"
+    logger.debug("_status_to_emoji:종료 emoji=✅")
     return "✅"
 
 
 def _is_error_status(status_val: Any) -> bool:
     """상태 코드/문자열이 오류인지 판별한다."""
 
+    logger.debug("_is_error_status:시작 status=%s", status_val)
     code = None
     if isinstance(status_val, dict):
         code = status_val.get("status")
@@ -262,13 +299,17 @@ def _is_error_status(status_val: Any) -> bool:
     except Exception:
         code_int = None
     if code_int is None:
+        logger.debug("_is_error_status:종료 result=False")
         return False
-    return code_int >= 400
+    result = code_int >= 400
+    logger.debug("_is_error_status:종료 result=%s", result)
+    return result
 
 
 def _render_auth_section(base_url: str) -> None:
     """로그인/회원가입 UI를 렌더링한다."""
 
+    logger.debug("_render_auth_section:시작 base_url=%s", base_url)
     st.header("로그인 또는 회원가입")
     email = st.text_input("이메일")
     password = st.text_input("비밀번호", type="password")
@@ -289,6 +330,7 @@ def _render_auth_section(base_url: str) -> None:
                     st.write(f"회원가입 상태: {resp.status_code}")
                     st.json(resp.json())
                 except Exception as exc:
+                    logger.error("_render_auth_section:회원가입 실패 email=%s err=%s", email, exc)
                     st.error(f"회원가입 실패: {exc}")
     with col2:
         if st.button("로그인"):
@@ -313,13 +355,16 @@ def _render_auth_section(base_url: str) -> None:
                         st.rerun()
                     st.json(data)
                 except Exception as exc:
+                    logger.error("_render_auth_section:로그인 실패 email=%s err=%s", email, exc)
                     st.error(f"로그인 실패: {exc}")
+    logger.debug("_render_auth_section:종료")
     st.stop()
 
 
 def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
     """기존 대화 로그를 챗봇 형식으로 표시한다."""
 
+    logger.debug("_render_chat_history:시작 entries=%d", len(chat_log or []))
     if not chat_log:
         st.info("아직 대화가 없습니다. 질문을 입력해보세요.")
         return
@@ -371,11 +416,13 @@ def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
                         st.caption(f"출처: {src or '제공되지 않음'}")
                     elif src:
                         st.caption(f"출처: {src}")
+    logger.debug("_render_chat_history:종료")
 
 
 def _render_connection_status(base_url: str) -> None:
     """API 연결 상태를 간단히 표시한다."""
 
+    logger.debug("_render_connection_status:시작 base_url=%s", base_url)
     status_box = st.empty()
     if not base_url:
         status_box.warning("FastAPI URL을 입력하세요.")
@@ -389,11 +436,14 @@ def _render_connection_status(base_url: str) -> None:
                 status_box.error(f"❌ API 응답 오류 ({resp.status_code})")
         except Exception as exc:  # pragma: no cover - UI 통신 예외
             status_box.error(f"❌ 연결 실패: {exc}")
+            logger.error("_render_connection_status:실패 err=%s", exc)
+    logger.debug("_render_connection_status:종료")
 
 
 def _handle_logout() -> None:
     """로그아웃 처리."""
 
+    logger.debug("_handle_logout:시작")
     st.session_state.pop("auth_token", None)
     st.session_state.pop("auth_user", None)
     st.session_state.pop("usage_remaining", None)
@@ -413,6 +463,7 @@ def _send_question(
 ) -> None:
     """질문을 전송하고 응답을 세션에 반영한다."""
 
+    logger.debug("_send_question:시작 question=%s turn=%s", question, turn_value)
     payload: dict[str, Any] = {"question": question, "turn": turn_value, "history": history_payload}
     if model_overrides:
         payload["models"] = {k: v for k, v in model_overrides.items() if v}
@@ -503,12 +554,14 @@ def _send_question(
                 st.session_state["usage_remaining"] = usage_remaining
             _append_chat_log_entry(question, answers_acc, sources_acc, events_acc)
             _update_usage_after_response(resp, admin_mode=st.session_state.get("usage_bypass"))
+            logger.info("_send_question:요약 수신 turn=%s max_turns=%s answers=%d", turn, max_turns, len(answers_acc))
             st.rerun()
             return
 
     # 요약이 안 왔을 때도 기록만 남김
     _append_chat_log_entry(question, answers_acc, sources_acc, events_acc)
     _update_usage_after_response(resp, admin_mode=st.session_state.get("usage_bypass"))
+    logger.warning("_send_question:요약 미수신, 기록만 저장")
     st.rerun()
 
 
@@ -521,6 +574,7 @@ def _send_prompt_eval(
 ) -> None:
     """프롬프트 평가 요청을 전송하고 스트림 응답을 표시한다."""
 
+    logger.debug("_send_prompt_eval:시작 question=%s models=%s", question, active_models)
     payload: dict[str, Any] = {"question": question, "models": active_models}
     if prompt_payload:
         payload["prompt"] = prompt_payload
@@ -569,6 +623,7 @@ def _send_prompt_eval(
         elif event_type == "error":
             message = parsed.get("message") or "에러가 발생했습니다."
             st.error(message)
+            logger.error("_send_prompt_eval:에러 이벤트 model=%s message=%s", parsed.get("model"), message)
             events_acc.append(
                 {
                     "model": parsed.get("model") or "unknown",
@@ -582,6 +637,7 @@ def _send_prompt_eval(
             summary_data = parsed.get("result") or {}
             scores = summary_data.get("scores") or []
             avg_score = summary_data.get("avg_score")
+            logger.info("_send_prompt_eval:요약 수신 scores=%d avg=%s", len(scores), avg_score)
             st.subheader("🏁 평가 결과")
             if avg_score is not None:
                 st.markdown(f"✨ **평균 점수:** {avg_score}")
@@ -634,9 +690,11 @@ def _send_prompt_eval(
                 "summary": summary_data,
             }
         )
+    logger.debug("_send_prompt_eval:종료")
 
 
 def main() -> None:
+    logger.debug("streamlit_main:시작")
     st.title("Compare-AI")
     st.caption("여러 LLM 중 내 질문에 가장 잘 답하는 모델을 찾아보세요.")
 
@@ -697,6 +755,8 @@ def main() -> None:
         st.info(f"남은 일일 사용 횟수: **{remaining}회** (관리자 우회 시 제한 없음)")
     if st.button("로그아웃"):
         _handle_logout()
+
+    logger.debug("streamlit_main:종료")
 
     tab_compare, tab_prompt = st.tabs(["모델 비교", "프롬프트 평가"])
 

@@ -37,7 +37,7 @@ settings_cache = get_settings()
 def build_chat_workflow():
     """StateGraph를 구성하고 LangGraph 앱으로 컴파일한다."""
 
-    logger.debug("LangGraph 워크플로우 컴파일 시작")
+    logger.debug("build_chat_workflow:시작")
     workflow = StateGraph(GraphState)
     workflow.add_node("init_question", init_question)
     workflow.add_node("call_openai", call_openai)
@@ -62,7 +62,7 @@ def build_chat_workflow():
 
     workflow.set_entry_point("init_question")
     compiled = workflow.compile()
-    logger.info("LangGraph 워크플로우 컴파일 완료")
+    logger.info("build_chat_workflow:컴파일 완료")
     return compiled
 
 
@@ -74,13 +74,16 @@ def get_app():
 
     global _app
     if _app is None:
+        logger.debug("get_app:앱 미존재, 새로 컴파일")
         _app = build_chat_workflow()
+    logger.debug("get_app:반환")
     return _app
 
 
 def _normalize_messages(messages: list | None) -> list[dict[str, str]]:
     """Streamlit 표시를 위해 메시지를 표준화한다."""
 
+    logger.debug("_normalize_messages:시작 count=%d", len(messages or []))
     normalized: list[dict[str, str]] = []
     for message in messages or []:
         if isinstance(message, (list, tuple)) and len(message) == 2:
@@ -88,6 +91,7 @@ def _normalize_messages(messages: list | None) -> list[dict[str, str]]:
             normalized.append({"role": str(role), "content": str(content)})
         else:
             normalized.append({"role": "system", "content": str(message)})
+    logger.debug("_normalize_messages:종료 count=%d", len(normalized))
     return normalized
 
 
@@ -110,7 +114,9 @@ async def stream_chat(
         model_overrides: 공급자별 모델명을 덮어쓰는 매핑.
     """
 
+    logger.debug("stream_chat:시작 turn=%s max_turns=%s", turn, max_turns)
     if not question or not question.strip():
+        logger.error("stream_chat:질문 비어있음")
         raise ValueError("질문을 입력해주세요.")
 
     resolved_max_turns = max_turns or settings_cache.max_turns_default
@@ -198,6 +204,8 @@ async def stream_chat(
             "model": None,
             "turn": turn,
         }
+    finally:
+        logger.debug("stream_chat:종료 turn=%s", turn)
 
 
 __all__ = ["stream_chat", "DEFAULT_MAX_TURNS", "build_chat_workflow"]

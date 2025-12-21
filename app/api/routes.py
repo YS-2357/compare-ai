@@ -34,7 +34,10 @@ async def health():
     - 응답은 `{"status": "ok"}` 형태의 JSON 한 건이다.
     """
 
-    return {"status": "ok"}
+    logger.debug("health:시작")
+    resp = {"status": "ok"}
+    logger.info("health:성공 응답=%s", resp)
+    return resp
 
 
 @router.post(
@@ -77,6 +80,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     - `X-Usage-Limit`, `X-Usage-Remaining`: 남은 일일 호출 횟수(관리자는 null).
     """
 
+    logger.debug("ask_question:시작 question=%s", _preview(payload.question))
     settings = get_settings()
     question = payload.question.strip()
     if not question:
@@ -201,6 +205,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                 },
             }
             logger.info("요약 응답 전송 - 완료 모델 수: %d, 오류 수: %d", len(answers), len(errors))
+            logger.debug("ask_question:종료 turn=%s max_turns=%s", turn, max_turns)
             yield json.dumps(summary, ensure_ascii=False) + "\n"
 
     headers = {}
@@ -253,6 +258,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
 async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depends(get_current_user)):
     """공통 프롬프트로 여러 모델을 호출하고, 최신 평가자들이 교차 평가해 점수를 스트리밍한다."""
 
+    logger.debug("prompt_eval:시작 question=%s", _preview(payload.question))
     settings = get_settings()
     question = payload.question.strip()
     if not question:
@@ -274,6 +280,8 @@ async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depe
             logger.error("프롬프트 평가 스트림 오류: %s", exc)
             error_event = {"type": "error", "message": str(exc), "node": None, "model": None}
             yield json.dumps(error_event, ensure_ascii=False) + "\n"
+        finally:
+            logger.debug("prompt_eval:종료 question=%s", _preview(question))
 
     headers = {}
     if usage_remaining is not None:
