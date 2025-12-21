@@ -274,6 +274,7 @@ async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depe
                 question,
                 prompt=payload.prompt,
                 active_models=payload.models,
+                reference_answer=payload.reference_answer,
             ):
                 yield json.dumps(event, ensure_ascii=False) + "\n"
         except Exception as exc:  # pragma: no cover

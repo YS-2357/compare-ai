@@ -578,6 +578,9 @@ def _send_prompt_eval(
     payload: dict[str, Any] = {"question": question, "models": active_models}
     if prompt_payload:
         payload["prompt"] = prompt_payload
+    reference_answer = st.session_state.get("prompt_eval_reference") or ""
+    if reference_answer.strip():
+        payload["reference_answer"] = reference_answer.strip()
 
     resp = requests.post(eval_url, headers=headers, json=payload, stream=True, timeout=120)
     placeholders: dict[str, Any] = {}
@@ -822,6 +825,13 @@ def main() -> None:
             key="prompt_common",
             value=default_prompt,
             placeholder="예: [Question]\\n{question}\\n\\n답변은 한국어로 작성하세요.",
+            height=120,
+        )
+        st.markdown("선택사항: 예시 답변(기준)")
+        st.text_area(
+            "예시 답변 (없으면 비워두세요)",
+            key="prompt_eval_reference",
+            placeholder="예시: 주 4일제 도입 시 생산성이 유지되고 이직률이 낮아진 사례를 근거로 설명...",
             height=120,
         )
 
