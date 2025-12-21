@@ -90,7 +90,7 @@ compare-ai/
 ├── app/
 │   ├── utils/
 │   │   ├── config.py              # Pydantic Settings (환경변수 관리)
-│   │   └── logger.py              # 콘솔 로거 설정
+│   │   └── logger.py              # 콘솔/파일 로거 설정
 │   ├── main.py                    # FastAPI 앱 팩토리
 │   ├── api/                       # 라우터/스키마/의존성
 │   │   ├── routes.py              # /health, /api/ask
