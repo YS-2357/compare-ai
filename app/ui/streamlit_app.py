@@ -661,14 +661,25 @@ def _send_prompt_eval(
                                 "rationale": sc.get("rationale"),
                             }
                         )
-                # 순위 기준 정렬
+                # 순위/점수 요약 표 (수동 렌더)
                 sorted_scores = sorted(scores, key=lambda x: x.get("rank") or 999)
+                st.markdown("**순위/점수 요약**")
+                st.markdown("| 순위 | 모델 | 평균점수 | 평가자 수 |\n|---|---|---|---|")
+                for s in sorted_scores:
+                    model = s.get("model")
+                    rank = s.get("rank")
+                    avg = s.get("score")
+                    eval_items = per_model.get(model, [])
+                    st.markdown(f"| {rank} | {model} | {avg} | {len(eval_items)} |")
+
+                # 모델별 상세(평가자 근거 분리)
+                st.markdown("**모델별 상세 근거**")
                 lines = []
                 for s in sorted_scores:
                     model = s.get("model")
                     rank = s.get("rank")
                     avg = s.get("score")
-                    st.markdown(f"**{rank}위: {model}** (평균점수: {avg})")
+                    st.markdown(f"### {rank}위 · {model} (평균점수: {avg})")
                     eval_items = per_model.get(model, [])
                     if eval_items:
                         for item in eval_items:
