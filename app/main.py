@@ -8,9 +8,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router as api_router
-from .config import Settings, get_settings
 from .auth.supabase import shutdown_auth_client
 from .rate_limit.upstash import shutdown_rate_limiter
+from .utils.config import Settings, get_settings
 
 
 FASTAPI_DESCRIPTION = (
