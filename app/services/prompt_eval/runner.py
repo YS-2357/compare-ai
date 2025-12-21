@@ -147,7 +147,7 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
         content = getattr(response, "content", None) or str(response)
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         logger.info("%s 호출 성공 (elapsed_ms=%s)", label, elapsed_ms)
-        logger.debug("_call_single_model:raw_response label=%s preview=%s", label, str(content)[:500])
+        logger.debug("_call_single_model:raw_response label=%s body=%s", label, str(content))
         return {
             "model": label,
             "answer": content,
@@ -266,7 +266,7 @@ async def _evaluate_answers(
         ]
         elapsed_ms = int((time.perf_counter() - start_eval) * 1000)
         logger.info("평가 성공: evaluator=%s model=%s elapsed_ms=%s", evaluator_label, eval_model_name, elapsed_ms)
-        logger.debug("_evaluate_answers:raw_response evaluator=%s preview=%s", evaluator_label, raw_text[:500])
+        logger.debug("_evaluate_answers:raw_response evaluator=%s body=%s", evaluator_label, raw_text)
         return {
             "evaluator": evaluator_label,
             "scores": scores,

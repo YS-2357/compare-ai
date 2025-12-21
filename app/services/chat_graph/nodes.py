@@ -122,7 +122,7 @@ async def call_model_common(
         updated_msgs, summaries = await maybe_summarize_history(
             llm, state, label, [("assistant", msg_payload)], state.get("turn")
         )
-        logger.debug("call_model_common:원본응답 label=%s preview=%s", label, preview_text(str(content)))
+        logger.debug("call_model_common:원본응답 label=%s body=%s", label, str(content))
         logger.info("call_model_common:성공 label=%s status=%s", label, status.get("status") if isinstance(status, dict) else status)
         return GraphState(
             model_messages={label: updated_msgs},
