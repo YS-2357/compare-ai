@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import AuthenticatedUser, enforce_daily_limit, get_current_user, get_settings
 from app.api.schemas import AskRequest, PromptEvalRequest
-from app.logger import get_logger
+from app.utils.logger import get_logger
 from app.services import stream_chat
 from app.services.chat_graph import DEFAULT_MAX_TURNS
 from app.services.prompt_eval import stream_prompt_eval

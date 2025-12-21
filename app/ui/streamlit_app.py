@@ -10,7 +10,7 @@ from typing import Any
 import requests
 import streamlit as st
 from dotenv import load_dotenv
-from app.logger import get_logger
+from app.utils.logger import get_logger
 
 load_dotenv()
 logger = get_logger(__name__)

@@ -8,8 +8,8 @@ from typing import Any, AsyncIterator
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
-from app.config import get_settings
-from app.logger import get_logger
+from app.utils.config import get_settings
+from app.utils.logger import get_logger
 
 from .llm_registry import create_uuid
 from .nodes import (

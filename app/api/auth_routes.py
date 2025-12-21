@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.auth import get_auth_client
 from app.api.schemas import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
-from app.logger import get_logger
+from app.utils.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

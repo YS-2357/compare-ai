@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.api.deps import AuthenticatedUser, get_current_user, get_settings
 from app.api.schemas import UsageResponse
 from app.rate_limit.upstash import get_rate_limiter
-from app.logger import get_logger
+from app.utils.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

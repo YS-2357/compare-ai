@@ -3,7 +3,8 @@
 > 최종 업데이트: 2025-12-20 — `services/chat_graph` 리네임, 프롬프트 평가 병렬화/런타임 오류 수정, Streamlit 평가 테이블 렌더링 개선
 
 - FastAPI 애플리케이션 루트 패키지.
-- `config.py`: 환경변수 로딩/Settings.
+- `utils/config.py`: 환경변수 로딩/Settings.
+- `utils/logger.py`: 콘솔 로거 설정.
 - `main.py`: FastAPI 앱 팩토리.
 - `api/`: 엔드포인트(/health, /api/ask, /api/prompt-eval, /auth/*), 스키마, Depends.
 - `auth/`: Supabase JWT 검증/클라이언트.

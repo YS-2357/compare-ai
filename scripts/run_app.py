@@ -10,8 +10,8 @@ from pathlib import Path
 
 import uvicorn
 
-from app.config import get_settings
-from app.logger import get_logger
+from app.utils.config import get_settings
+from app.utils.logger import get_logger
 from app.main import app as fastapi_app
 
 logger = get_logger(__name__)

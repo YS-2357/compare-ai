@@ -7,7 +7,7 @@ from typing import Any
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.logger import get_logger
+from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 SUMMARY_PROMPT = ChatPromptTemplate.from_template(

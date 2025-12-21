@@ -88,7 +88,9 @@ CI(GitHub Actions)는 push/PR 시 Python 3.11 환경에서 `pip install -r requi
 ```
 compare-ai/
 ├── app/
-│   ├── config.py                  # Pydantic Settings (환경변수 관리)
+│   ├── utils/
+│   │   ├── config.py              # Pydantic Settings (환경변수 관리)
+│   │   └── logger.py              # 콘솔 로거 설정
 │   ├── main.py                    # FastAPI 앱 팩토리
 │   ├── api/                       # 라우터/스키마/의존성
 │   │   ├── routes.py              # /health, /api/ask

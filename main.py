@@ -10,7 +10,7 @@ import os
 
 import uvicorn
 
-from app.config import get_settings
+from app.utils.config import get_settings
 from app.main import app as fastapi_app
 from scripts.run_app import main as run_main
 

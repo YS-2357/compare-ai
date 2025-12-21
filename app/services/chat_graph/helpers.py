@@ -9,8 +9,8 @@ from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.logger import get_logger
-from app.config import get_settings
+from app.utils.logger import get_logger
+from app.utils.config import get_settings
 from .summaries import preview_text
 
 logger = get_logger(__name__)

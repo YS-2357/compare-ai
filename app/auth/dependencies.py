@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fastapi import Depends, HTTPException, Header, status
 
-from app.config import get_settings
+from app.utils.config import get_settings
 from .supabase import AuthenticatedUser, get_verifier
 
 

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import HTTPException, status
 
-from app.logger import get_logger
+from app.utils.logger import get_logger
 from .upstash import get_rate_limiter
 
 logger = get_logger(__name__)
