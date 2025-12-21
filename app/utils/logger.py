@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
+from pathlib import Path
 
 LEVEL_EMOJI: dict[int, str] = {
     logging.DEBUG: "🛠️",
@@ -58,9 +60,18 @@ def get_logger(name: str) -> logging.Logger:
     logger.setLevel(logging.DEBUG)
 
     if not logger.handlers:
-        handler = logging.StreamHandler()
         formatter = EmojiFormatter(datefmt="%H:%M:%S")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+
+        # 파일 핸들러 추가 (루트/logs/날짜.log)
+        logs_dir = Path(__file__).resolve().parents[2] / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+        file_path = logs_dir / f"{date.today().isoformat()}.log"
+        file_handler = logging.FileHandler(file_path, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
         logger.propagate = False
     return logger
