@@ -138,7 +138,7 @@ def _build_model_prompt(question: str, prompt: str | None) -> str:
 async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
     """단일 모델 호출 및 파싱 실패 대비."""
 
-    logger.debug("_call_single_model:시작 label=%s", label)
+    logger.debug("_call_single_model:시작 label=%s prompt_preview=%s", label, prompt_text[:200])
     start = time.perf_counter()
     try:
         llm = _llm_factory(label)
@@ -178,6 +178,7 @@ def _build_eval_prompt(question: str, anonymized: list[tuple[str, str]], referen
     """블라인드 평가 프롬프트를 생성한다."""
 
     logger.debug("_build_eval_prompt:시작 answers=%d", len(anonymized))
+    logger.debug("_build_eval_prompt:question preview=%s reference=%s", question[:200], bool(reference))
     examples = "\n".join([f"ID {anon_id}:\n{content}\n" for anon_id, content in anonymized])
     rubric_line = (
         "Use the reference answer to check factual alignment; if the wording differs but facts match, allow it."
@@ -218,6 +219,7 @@ async def _evaluate_answers(
     id_to_model = {f"resp_{i+1}": r["model"] for i, r in enumerate(results)}
 
     prompt = _build_eval_prompt(question, anonymized, reference)
+    logger.debug("_evaluate_answers:prompt_preview=%s", str(prompt)[:300])
     parser = PydanticOutputParser(pydantic_object=ScoreList)
     start_eval = time.perf_counter()
     try:

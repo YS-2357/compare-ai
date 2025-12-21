@@ -107,7 +107,14 @@ async def call_model_common(
     """모델 호출 공통 루틴."""
 
     prompt_input = build_chat_prompt_input(state, label)
-    logger.debug("call_model_common:시작 label=%s", label)
+    logger.debug(
+        "call_model_common:시작 label=%s turn=%s max_turns=%s models=%s",
+        label,
+        state.get("turn"),
+        state.get("max_turns"),
+        state.get("active_models"),
+    )
+    logger.debug("call_model_common:prompt_input preview=%s", preview_text(prompt_input))
     try:
         llm = llm_factory()
         content, source, status = await invoke_parsed(llm, prompt_input, label)
