@@ -874,9 +874,23 @@ def main() -> None:
         st.subheader("Prompt Eval")
         eval_mermaid = """
         flowchart TD
-          Q2[Question + Common Prompt] --> GEN[Generate by active models]
-          GEN --> EVAL[Evaluate by latest vendor models]
-          EVAL --> SUM[Summary (scores, rationales)]
+          Q2[Question + Common Prompt] --> GEN[Generate: each active model]
+          GEN --> OAI_E[Eval by OpenAI (latest)]
+          GEN --> GEM_E[Eval by Gemini (latest)]
+          GEN --> ANT_E[Eval by Anthropic (latest)]
+          GEN --> UPS_E[Eval by Upstage (latest)]
+          GEN --> PPLX_E[Eval by Perplexity (latest)]
+          GEN --> MIS_E[Eval by Mistral (latest)]
+          GEN --> GRQ_E[Eval by Groq (latest)]
+          GEN --> COH_E[Eval by Cohere (latest)]
+          OAI_E --> SUM[Summary (scores, rationales)]
+          GEM_E --> SUM
+          ANT_E --> SUM
+          UPS_E --> SUM
+          PPLX_E --> SUM
+          MIS_E --> SUM
+          GRQ_E --> SUM
+          COH_E --> SUM
         """
         st.markdown(f"```mermaid\n{eval_mermaid}\n```")
 
