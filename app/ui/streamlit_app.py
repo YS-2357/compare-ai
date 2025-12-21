@@ -856,13 +856,16 @@ def main() -> None:
         )
         question_eval = st.text_area("질문", placeholder="비교할 질문을 입력하세요", height=100)
 
-        default_prompt = "[Question]\\n{question}\\n\\n답변은 한국어로 작성하세요."
+        default_prompt = """[Question]
+{question}
+
+답변은 한국어로 작성하세요."""
         st.markdown("공통 프롬프트 (미입력 시 기본값 사용)")
         prompt_val = st.text_area(
             "프롬프트",
             key="prompt_common",
             value=default_prompt,
-            placeholder="예: [Question]\\n{question}\\n\\n답변은 한국어로 작성하세요.",
+            placeholder="예:\n[Question]\n{question}\n\n답변은 한국어로 작성하세요.",
             height=120,
         )
         st.markdown("선택사항: 예시 답변(기준)")
