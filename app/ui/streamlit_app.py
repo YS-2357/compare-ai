@@ -645,26 +645,50 @@ def _send_prompt_eval(
             if avg_score is not None:
                 st.markdown(f"✨ **평균 점수:** {avg_score}")
             if scores:
-                # 카드형 요약 (모델/점수/순위/상태/근거)
-                for i in range(0, len(scores), 2):
-                    cols = st.columns(2)
-                    for score_row, col in zip(scores[i : i + 2], cols):
-                        model = score_row.get("model")
-                        score_val = score_row.get("score")
-                        rank = score_row.get("rank")
-                        rationale = score_row.get("rationale") or ""
-                        status_val = score_row.get("status") or {}
-                        emoji = _status_to_emoji(status_val)
-                        with col.container():
-                            st.markdown(f"{emoji} **{model}** — 점수: {score_val}, 순위: {rank}")
-                            if rationale:
-                                st.write(rationale)
+                evaluations = summary_data.get("evaluations") or []
+                # 모델별 평가자 점수/근거를 매핑
+                per_model: dict[str, list[dict[str, Any]]] = {}
+                for ev in evaluations:
+                    evaluator = ev.get("evaluator")
+                    for sc in ev.get("scores", []):
+                        target = sc.get("model")
+                        if not target:
+                            continue
+                        per_model.setdefault(target, []).append(
+                            {
+                                "evaluator": evaluator,
+                                "score": sc.get("score"),
+                                "rationale": sc.get("rationale"),
+                            }
+                        )
+                table_rows = []
+                for s in scores:
+                    model = s.get("model")
+                    evaluator_scores = per_model.get(model, [])
+                    score_list = ", ".join(
+                        f"{item.get('evaluator')}: {item.get('score')}" for item in evaluator_scores if item.get("score") is not None
+                    )
+                    rationales = "\n".join(
+                        f"[{item.get('evaluator')}] {item.get('rationale')}" for item in evaluator_scores if item.get("rationale")
+                    )
+                    table_rows.append(
+                        {
+                            "순위": s.get("rank"),
+                            "모델": model,
+                            "평균점수": s.get("score"),
+                            "평가자별 점수": score_list,
+                            "근거": rationales or s.get("rationale") or "",
+                        }
+                    )
+                st.dataframe(table_rows, width="stretch")
                 # 복사용 텍스트 뷰
                 lines = []
-                for s in scores:
-                    lines.append(f"[{s.get('model')}] score={s.get('score')} rank={s.get('rank')}")
-                    if s.get("rationale"):
-                        lines.append(f"rationale: {s.get('rationale')}")
+                for row in table_rows:
+                    lines.append(
+                        f"{row['순위']}위 | {row['모델']} | 평균점수={row['평균점수']} | 평가자별 점수={row['평가자별 점수']}"
+                    )
+                    if row["근거"]:
+                        lines.append(f"근거: {row['근거']}")
                 st.markdown("📋 복사용 텍스트")
                 st.code("\n".join(lines), language="text")
                 st.download_button(
@@ -865,7 +889,7 @@ def main() -> None:
             "프롬프트",
             key="prompt_common",
             value=default_prompt,
-            placeholder="예:\n[Question]\n{question}\n\n답변은 한국어로 작성하세요.",
+            placeholder="[Question]\n{question}\n\n답변은 한국어로 작성하세요.",
             height=120,
         )
         st.markdown("선택사항: 모범 답변 예시")
