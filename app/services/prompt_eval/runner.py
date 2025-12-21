@@ -39,7 +39,7 @@ class Score(BaseModel):
 
     id: str = Field(..., description="익명 응답 ID")
     score: float = Field(..., description="0~10 점수")
-    rank: int = Field(..., description="순위 (1이 최고)")
+    rank: int | None = Field(default=None, description="순위 (없으면 백엔드에서 산출)")
     rationale: str = Field(..., description="짧은 근거")
 
 
@@ -186,7 +186,7 @@ def _build_eval_prompt(question: str, anonymized: list[tuple[str, str]], referen
         "You are grading multiple anonymous answers to the same question.\n"
         "All answers are in Korean. Do NOT guess the original model/provider.\n"
         f"{rubric_line}\n"
-        "Score each answer 0-10, rank them (1 is best), and give a brief rationale.\n"
+        "Score each answer 0-10 and give a brief rationale. Do not assign ranks; the system will rank later.\n"
         "Return JSON only with the provided schema."
     )
     user = f"Question:\n{question}\n\nAnswers:\n{examples}"
@@ -333,14 +333,17 @@ def _aggregate_scores(results: list[dict[str, Any]], evaluations: list[dict[str,
                 }
             )
 
-        # 순위 계산 (내림차순)
-        sorted_items = sorted(
-            aggregated,
-            key=lambda x: x["score"] if isinstance(x.get("score"), (int, float)) else -1,
-            reverse=True,
-        )
-        for idx, item in enumerate(sorted_items, start=1):
-            item["rank"] = idx
+        # 점수 내림차순 정렬 후 동점 허용 랭크 계산
+        sorted_items = sorted(aggregated, key=lambda x: x["score"] if isinstance(x.get("score"), (int, float)) else -1, reverse=True)
+        # dense rank
+        last_score = None
+        current_rank = 0
+        for item in sorted_items:
+            score_val = item.get("score")
+            if score_val != last_score:
+                current_rank += 1
+                last_score = score_val
+            item["rank"] = current_rank
         logger.debug("_aggregate_scores:종료 aggregated=%d", len(sorted_items))
         return sorted_items
     except Exception as exc:
