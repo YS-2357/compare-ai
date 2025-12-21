@@ -777,11 +777,11 @@ def main() -> None:
     logger.debug("streamlit_main:종료")
 
     tab_compare, tab_prompt = st.tabs(["모델 비교", "프롬프트 평가"])
-    tab_graph = st.tabs(["그래프 보기"])[0]
 
     with tab_compare:
         st.header("대화")
         _render_chat_history(st.session_state["chat_log"])
+        show_chat_graph = st.checkbox("그래프 보기 (Chat Graph)", value=False)
 
         question = st.chat_input("질문을 입력하세요...")
 
@@ -801,10 +801,47 @@ def main() -> None:
                     _send_question(question, ask_url, headers, turn_value, history_payload, model_overrides=model_overrides)
                 except Exception as exc:  # pragma: no cover - UI 예외
                     st.error(f"요청 실패: {exc}")
+        if show_chat_graph:
+            st.subheader("Chat Graph")
+            chat_dot = """
+            digraph G {
+              rankdir=LR;
+              Q [label="User Question", shape=box];
+              INIT [label="init_question", shape=box];
+              OAI [label="call_openai"];
+              GEM [label="call_gemini"];
+              ANT [label="call_anthropic"];
+              PPLX [label="call_perplexity"];
+              UPS [label="call_upstage"];
+              MIS [label="call_mistral"];
+              GRQ [label="call_groq"];
+              COH [label="call_cohere"];
+              END1 [label="END", shape=Msquare];
+              Q -> INIT;
+              INIT -> OAI [label="fan-out"];
+              INIT -> GEM;
+              INIT -> ANT;
+              INIT -> PPLX;
+              INIT -> UPS;
+              INIT -> MIS;
+              INIT -> GRQ;
+              INIT -> COH;
+              OAI -> END1;
+              GEM -> END1;
+              ANT -> END1;
+              PPLX -> END1;
+              UPS -> END1;
+              MIS -> END1;
+              GRQ -> END1;
+              COH -> END1;
+            }
+            """
+            st.graphviz_chart(chat_dot)
 
     with tab_prompt:
         st.header("프롬프트 평가")
         st.write("모델별 프롬프트를 다르게 적용해 응답을 받고, 고정 평가모델로 블라인드 평가합니다.")
+        show_eval_graph = st.checkbox("그래프 보기 (Prompt Eval Graph)", value=False)
         if not eval_url:
             st.error("FastAPI Base URL을 설정해주세요.")
             return
@@ -844,64 +881,60 @@ def main() -> None:
                     _send_prompt_eval(question_eval, eval_url, headers, prompt_payload, active_labels)
                 except Exception as exc:  # pragma: no cover
                     st.error(f"요청 실패: {exc}")
+        if show_eval_graph:
+            st.subheader("Prompt Eval Graph")
+            eval_dot = """
+            digraph G {
+              rankdir=LR;
+              Q2 [label="Question + Prompt", shape=box];
+              OAI_G [label="Generate OpenAI"];
+              GEM_G [label="Generate Gemini"];
+              ANT_G [label="Generate Anthropic"];
+              UPS_G [label="Generate Upstage"];
+              PPLX_G [label="Generate Perplexity"];
+              MIS_G [label="Generate Mistral"];
+              GRQ_G [label="Generate Groq"];
+              COH_G [label="Generate Cohere"];
 
-    with tab_graph:
-        st.header("그래프 보기 (Mermaid)")
-        st.caption("LangGraph 워크플로우와 프롬프트 평가 파이프라인을 단순화해 표시합니다.")
-        st.subheader("Chat Graph")
-        chat_mermaid = """
-        flowchart TD
-          Q[User Question] --> INIT[init_question]
-          INIT -->|fan-out| OAI[call_openai]
-          INIT --> GEM[call_gemini]
-          INIT --> ANT[call_anthropic]
-          INIT --> PPLX[call_perplexity]
-          INIT --> UPS[call_upstage]
-          INIT --> MIS[call_mistral]
-          INIT --> GRQ[call_groq]
-          INIT --> COH[call_cohere]
-          OAI --> END1[END]
-          GEM --> END1
-          ANT --> END1
-          PPLX --> END1
-          UPS --> END1
-          MIS --> END1
-          GRQ --> END1
-          COH --> END1
-        """
-        st.markdown(f"```mermaid\n{chat_mermaid}\n```")
+              Q2 -> OAI_G;
+              Q2 -> GEM_G;
+              Q2 -> ANT_G;
+              Q2 -> UPS_G;
+              Q2 -> PPLX_G;
+              Q2 -> MIS_G;
+              Q2 -> GRQ_G;
+              Q2 -> COH_G;
 
-        st.subheader("Prompt Eval")
-        eval_mermaid = """
-        flowchart TD
-          Q2[Question + Common Prompt] --> OAI_G[Generate OpenAI]
-          Q2 --> GEM_G[Generate Gemini]
-          Q2 --> ANT_G[Generate Anthropic]
-          Q2 --> UPS_G[Generate Upstage]
-          Q2 --> PPLX_G[Generate Perplexity]
-          Q2 --> MIS_G[Generate Mistral]
-          Q2 --> GRQ_G[Generate Groq]
-          Q2 --> COH_G[Generate Cohere]
+              OAI_E [label="Eval by OpenAI (latest)"];
+              GEM_E [label="Eval by Gemini (latest)"];
+              ANT_E [label="Eval by Anthropic (latest)"];
+              UPS_E [label="Eval by Upstage (latest)"];
+              PPLX_E [label="Eval by Perplexity (latest)"];
+              MIS_E [label="Eval by Mistral (latest)"];
+              GRQ_E [label="Eval by Groq (latest)"];
+              COH_E [label="Eval by Cohere (latest)"];
 
-          OAI_G --> OAI_E[Eval by OpenAI (latest)]
-          GEM_G --> GEM_E[Eval by Gemini (latest)]
-          ANT_G --> ANT_E[Eval by Anthropic (latest)]
-          UPS_G --> UPS_E[Eval by Upstage (latest)]
-          PPLX_G --> PPLX_E[Eval by Perplexity (latest)]
-          MIS_G --> MIS_E[Eval by Mistral (latest)]
-          GRQ_G --> GRQ_E[Eval by Groq (latest)]
-          COH_G --> COH_E[Eval by Cohere (latest)]
+              OAI_G -> OAI_E;
+              GEM_G -> GEM_E;
+              ANT_G -> ANT_E;
+              UPS_G -> UPS_E;
+              PPLX_G -> PPLX_E;
+              MIS_G -> MIS_E;
+              GRQ_G -> GRQ_E;
+              COH_G -> COH_E;
 
-          OAI_E --> SUM[Summary (scores, rationales)]
-          GEM_E --> SUM
-          ANT_E --> SUM
-          UPS_E --> SUM
-          PPLX_E --> SUM
-          MIS_E --> SUM
-          GRQ_E --> SUM
-          COH_E --> SUM
-        """
-        st.markdown(f"```mermaid\n{eval_mermaid}\n```")
+              SUM [label="Summary", shape=Msquare];
+              OAI_E -> SUM;
+              GEM_E -> SUM;
+              ANT_E -> SUM;
+              UPS_E -> SUM;
+              PPLX_E -> SUM;
+              MIS_E -> SUM;
+              GRQ_E -> SUM;
+              COH_E -> SUM;
+            }
+            """
+            st.graphviz_chart(eval_dot)
 
 
 if __name__ == "__main__":
