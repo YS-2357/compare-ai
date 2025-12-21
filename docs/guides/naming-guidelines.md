@@ -1,4 +1,4 @@
-# 네이밍 및 폴더 구조 가이드 (초안)
+# 네이밍 및 폴더 구조 가이드
 
 > 목적: 서비스/스트리밍 코드가 커질 때도 일관된 경로/이름을 유지하고, 리뷰 시 근거로 삼는다.
 
@@ -22,11 +22,3 @@
 ## export 정책
 - 외부에 노출되는 진입점만 `__all__`/`__init__.py`에 export(`stream_chat`, `stream_prompt_eval` 등).
 - 내부 유틸은 도메인 패키지 내부 import로 한정(shared 제외).
-
-## 문서 관리
-- 이 파일(`docs/guides/naming-guidelines.md`)에서 규칙을 유지/보완하고, 큰 변경 시 changelog에 링크.
-
-## 설정/환경변수 중앙 관리
-- 환경 변수 접근은 반드시 `app.utils.config.get_settings()`로 한 번만 읽고 재사용한다(직접 `os.getenv` 사용 금지).
-- 모델 기본값, 타임아웃, API 키/엔드포인트, 평가용 옵션(reference 등)은 모두 `Settings`에 정의하고 주입한다.
-- 새 옵션을 추가할 때는 `Settings` 필드 → `.from_env()` → 사용처 주입 순서로 반영한다.
