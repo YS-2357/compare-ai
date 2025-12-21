@@ -781,7 +781,7 @@ def main() -> None:
     with tab_compare:
         st.header("대화")
         _render_chat_history(st.session_state["chat_log"])
-        show_chat_graph = st.checkbox("그래프 보기 (Chat Graph)", value=False)
+        show_chat_graph = st.toggle("그래프 보기 (Chat Graph)", value=False)
 
         question = st.chat_input("질문을 입력하세요...")
 
@@ -841,7 +841,7 @@ def main() -> None:
     with tab_prompt:
         st.header("프롬프트 평가")
         st.write("모델별 프롬프트를 다르게 적용해 응답을 받고, 고정 평가모델로 블라인드 평가합니다.")
-        show_eval_graph = st.checkbox("그래프 보기 (Prompt Eval Graph)", value=False)
+        show_eval_graph = st.toggle("그래프 보기 (Prompt Eval Graph)", value=False)
         if not eval_url:
             st.error("FastAPI Base URL을 설정해주세요.")
             return
