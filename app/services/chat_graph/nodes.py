@@ -115,6 +115,7 @@ async def call_model_common(
         updated_msgs, summaries = await maybe_summarize_history(
             llm, state, label, [("assistant", msg_payload)], state.get("turn")
         )
+        logger.debug("call_model_common:원본응답 label=%s preview=%s", label, preview_text(str(content)))
         logger.info("call_model_common:성공 label=%s status=%s", label, status.get("status") if isinstance(status, dict) else status)
         return GraphState(
             model_messages={label: updated_msgs},
@@ -126,6 +127,7 @@ async def call_model_common(
     except Exception as exc:
         status = build_status_from_error(exc)
         logger.warning("call_model_common:실패 label=%s error=%s", label, exc)
+        logger.debug("call_model_common:원본응답 실패 label=%s status=%s", label, status)
         error_msg = f"응답 실패: {status.get('detail') or exc}"
         return GraphState(
             api_status={label: status},
