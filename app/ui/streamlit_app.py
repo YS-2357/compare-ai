@@ -668,10 +668,17 @@ def _send_prompt_eval(
                 for s in sorted_scores:
                     model = s.get("model")
                     rank = s.get("rank")
-                    avg = s.get("score")
+                    avg_raw = s.get("score")
+                    avg = f"{avg_raw:.2f}" if isinstance(avg_raw, (int, float)) else avg_raw
                     eval_items = per_model.get(model, [])
                     score_list = ", ".join(
-                        f"{item.get('evaluator')}: {item.get('score')}" for item in eval_items if item.get("score") is not None
+                        (
+                            f"{item.get('evaluator')}: {item.get('score'):.2f}"
+                            if isinstance(item.get("score"), (int, float))
+                            else f"{item.get('evaluator')}: {item.get('score')}"
+                        )
+                        for item in eval_items
+                        if item.get("score") is not None
                     )
                     summary_rows.append(
                         {
@@ -700,7 +707,7 @@ def _send_prompt_eval(
                             rationale_rows.append(
                                 {
                                     "평가자": item.get("evaluator"),
-                                    "점수": item.get("score"),
+                                    "점수": f"{item.get('score'):.2f}" if isinstance(item.get("score"), (int, float)) else item.get("score"),
                                     "근거": item.get("rationale") or "",
                                 }
                             )
