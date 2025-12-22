@@ -18,6 +18,11 @@ class PromptEvalRequest(BaseModel):
         description="평가 대상 모델 라벨 목록 (미지정 시 기본 8개)",
         examples=[["OpenAI", "Gemini", "Anthropic"]],
     )
+    model_overrides: dict[str, str] | None = Field(
+        None,
+        description="공급자별 모델 오버라이드 (예: {'openai': 'gpt-4.1-mini'})",
+        examples=[{"openai": "gpt-4.1-mini", "mistral": "mistral-small-latest"}],
+    )
     reference_answer: str | None = Field(
         None,
         description="선택적 예시 답변(있으면 평가 프롬프트에 포함)",

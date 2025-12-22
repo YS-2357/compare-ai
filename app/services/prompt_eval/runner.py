@@ -157,21 +157,21 @@ def _extract_response_meta(response: Any) -> dict[str, Any]:
     return meta
 
 
-def _llm_factory(label: str) -> Any:
+def _llm_factory(label: str, model_name: str | None = None) -> Any:
     """모델 라벨에 맞는 LLM 팩토리를 반환한다."""
 
     logger.debug("_llm_factory:시작 label=%s", label)
     sc = settings_cache
     factories = {
-        "OpenAI": lambda: ChatOpenAI(model=sc.model_openai),
-        "Gemini": lambda: ChatGoogleGenerativeAI(model=sc.model_gemini, temperature=0),
-        "Anthropic": lambda: ChatAnthropic(model=sc.model_anthropic),
-        "Perplexity": lambda: _build_perplexity_llm(sc.model_perplexity),
-        "Upstage": lambda: ChatUpstage(model=sc.model_upstage),
-        "Mistral": lambda: ChatMistralAI(model=sc.model_mistral),
-        "Groq": lambda: ChatGroq(model=sc.model_groq),
-        "Cohere": lambda: ChatCohere(model=sc.model_cohere),
-        "DeepSeek": lambda: _build_deepseek_llm(sc.model_deepseek, sc.deepseek_base_url),
+        "OpenAI": lambda: ChatOpenAI(model=model_name or sc.model_openai),
+        "Gemini": lambda: ChatGoogleGenerativeAI(model=model_name or sc.model_gemini, temperature=0),
+        "Anthropic": lambda: ChatAnthropic(model=model_name or sc.model_anthropic),
+        "Perplexity": lambda: _build_perplexity_llm(model_name or sc.model_perplexity),
+        "Upstage": lambda: ChatUpstage(model=model_name or sc.model_upstage),
+        "Mistral": lambda: ChatMistralAI(model=model_name or sc.model_mistral),
+        "Groq": lambda: ChatGroq(model=model_name or sc.model_groq),
+        "Cohere": lambda: ChatCohere(model=model_name or sc.model_cohere),
+        "DeepSeek": lambda: _build_deepseek_llm(model_name or sc.model_deepseek, sc.deepseek_base_url),
     }
     if label not in factories:
         raise ValueError(f"지원하지 않는 모델 라벨: {label}")
@@ -251,6 +251,18 @@ def _select_eval_llm(active_labels: list[str]) -> tuple[Any, str]:
 
 DEFAULT_PROMPT = "[Question]\n{question}\n\n답변은 한국어로 작성하세요."
 
+LABEL_TO_KEY = {
+    "OpenAI": "openai",
+    "Gemini": "gemini",
+    "Anthropic": "anthropic",
+    "Perplexity": "perplexity",
+    "Upstage": "upstage",
+    "Mistral": "mistral",
+    "Groq": "groq",
+    "Cohere": "cohere",
+    "DeepSeek": "deepseek",
+}
+
 
 def _build_model_prompt(question: str, prompt: str | None) -> str:
     """모든 모델에 동일하게 적용할 프롬프트를 생성한다."""
@@ -268,13 +280,13 @@ def _build_model_prompt(question: str, prompt: str | None) -> str:
         return fallback
 
 
-async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
+async def _call_single_model(label: str, prompt_text: str, model_name: str | None = None) -> dict[str, Any]:
     """단일 모델 호출 및 파싱 실패 대비."""
 
     logger.debug("_call_single_model:시작 label=%s prompt_preview=%s", label, prompt_text[:200])
     start = time.perf_counter()
     try:
-        llm = _llm_factory(label)
+        llm = _llm_factory(label, model_name)
         response = await llm.ainvoke(prompt_text)
         status = build_status_from_response(response)
         response_meta = _extract_response_meta(response)
@@ -539,6 +551,7 @@ async def stream_prompt_eval(
     question: str,
     prompt: str | None = None,
     active_models: list[str] | None = None,
+    model_overrides: dict[str, str] | None = None,
     reference_answer: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """모델별 프롬프트 적용 + 블라인드 평가를 스트리밍한다."""
@@ -568,9 +581,12 @@ async def stream_prompt_eval(
         logger.info("PromptEval 실행: models=%s", ", ".join(models))
 
         prompt_text = _build_model_prompt(question, prompt)
+        overrides = model_overrides or {}
         tasks = []
         for label in models:
-            tasks.append(asyncio.create_task(_call_single_model(label, prompt_text)))
+            key = LABEL_TO_KEY.get(label)
+            override_model = overrides.get(key) if key else None
+            tasks.append(asyncio.create_task(_call_single_model(label, prompt_text, override_model)))
 
         results: list[dict[str, Any]] = []
         start = time.perf_counter()

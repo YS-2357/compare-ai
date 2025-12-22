@@ -671,6 +671,9 @@ def _send_prompt_eval(
 
     logger.debug("_send_prompt_eval:시작 question=%s models=%s", question, active_models)
     payload: dict[str, Any] = {"question": question, "models": active_models}
+    model_overrides = st.session_state.get("model_selections") or {}
+    if model_overrides:
+        payload["model_overrides"] = model_overrides
     if prompt_payload:
         payload["prompt"] = prompt_payload
     reference_answer = st.session_state.get("prompt_eval_reference") or ""

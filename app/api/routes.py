@@ -258,7 +258,8 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
         "- `type=\"summary\"`: 모든 평가가 끝난 후 최종 점수 표(`scores`), 평가자별 원본 점수/근거(`evaluations`), 평균점수(`avg_score`), 모델별 `response_meta`를 포함.\n"
         "- `type=\"error\"`: 처리 중 오류.\n\n"
         "옵션:\n"
-        "- `reference_answer`: 모범 답변 예시를 넣으면 평가 프롬프트에 참고용으로 포함(없으면 기본 루브릭으로 평가).\n\n"
+        "- `reference_answer`: 모범 답변 예시를 넣으면 평가 프롬프트에 참고용으로 포함(없으면 기본 루브릭으로 평가).\n"
+        "- `model_overrides`: 공급자별 모델 오버라이드(예: `{ \"openai\": \"gpt-4.1-mini\" }`).\n\n"
         "헤더: `X-Usage-Limit`, `X-Usage-Remaining`에 남은 일일 호출 수가 담깁니다."
     ),
 )
@@ -281,6 +282,7 @@ async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depe
                 question,
                 prompt=payload.prompt,
                 active_models=payload.models,
+                model_overrides=payload.model_overrides,
                 reference_answer=payload.reference_answer,
             ):
                 yield json.dumps(event, ensure_ascii=False) + "\n"
