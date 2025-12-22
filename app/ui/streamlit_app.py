@@ -55,12 +55,24 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
     "groq": {
         "label": "Groq",
         "env": "MODEL_GROQ",
-        "choices": ["llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"],
+        "choices": ["llama-3.3-70b-versatile"],
     },
     "cohere": {
         "label": "Cohere",
         "env": "MODEL_COHERE",
-        "choices": ["command-r-plus", "command-r", "command-r7b"],
+        "choices": [
+            "command-r7b-12-2024",
+            "command-a-03-2025",
+            "command-a-translate-08-2025",
+            "command-a-reasoning-08-2025",
+            "command-r-08-2024",
+            "command-r-plus-08-2024",
+        ],
+    },
+    "deepseek": {
+        "label": "DeepSeek",
+        "env": "MODEL_DEEPSEEK",
+        "choices": ["deepseek-chat", "deepseek-reasoner"],
     },
 }
 
@@ -72,8 +84,17 @@ def _default_model(provider: str) -> str:
     meta = MODEL_OPTIONS[provider]
     env_value = os.getenv(meta["env"])
     if env_value:
-        logger.info("_default_model:환경변수 사용 provider=%s model=%s", provider, env_value)
+        _log_model_default_if_changed(provider, env_value, "환경변수")
         return env_value
+    provider_defaults = {
+        "groq": "llama-3.3-70b-versatile",
+        "cohere": "command-r7b-12-2024",
+        "deepseek": "deepseek-chat",
+    }
+    preferred = provider_defaults.get(provider)
+    if preferred and preferred in meta["choices"]:
+        _log_model_default_if_changed(provider, preferred, "기본")
+        return preferred
     # 가벼운/저렴한 모델을 기본값으로 선택(리스트에 없으면 첫 번째)
     cheap_candidates = [
         "gpt-4o-mini",
@@ -85,16 +106,28 @@ def _default_model(provider: str) -> str:
         "sonar-small",
         "mistral-small-3.2",
         "ministral-3-8b",
-        "grok-2-mini",
+        "llama-3.3-70b-versatile",
         "command-light",
+        "deepseek-chat",
     ]
     for candidate in cheap_candidates:
         if candidate in meta["choices"]:
-            logger.debug("_default_model:저가형 선택 provider=%s model=%s", provider, candidate)
+            _log_model_default_if_changed(provider, candidate, "저가형")
             return candidate
     chosen = meta["choices"][0]
-    logger.debug("_default_model:기본 선택 provider=%s model=%s", provider, chosen)
+    _log_model_default_if_changed(provider, chosen, "기본")
     return chosen
+
+
+def _log_model_default_if_changed(provider: str, model: str, source: str) -> None:
+    """모델 기본값이 바뀔 때만 로그를 남긴다."""
+
+    cache = st.session_state.setdefault("default_model_cache", {})
+    last = cache.get(provider)
+    if last == model:
+        return
+    cache[provider] = model
+    logger.info("_default_model:선택 provider=%s model=%s source=%s", provider, model, source)
 
 
 def _ensure_model_selections() -> None:
@@ -298,6 +331,51 @@ def _is_error_status(status_val: Any) -> bool:
     return result
 
 
+def _format_response_meta(meta: dict[str, Any] | None) -> str | None:
+    """응답 메타를 한 줄 요약으로 만든다."""
+
+    if not meta:
+        return None
+    parts: list[str] = []
+    model_name = meta.get("model_name")
+    if model_name:
+        parts.append(f"모델: {model_name}")
+    finish_reason = meta.get("finish_reason") or meta.get("stop_reason")
+    if finish_reason:
+        parts.append(f"종료: {finish_reason}")
+    refusal = meta.get("refusal")
+    if refusal:
+        parts.append(f"거부: {refusal}")
+    prompt_feedback = meta.get("prompt_feedback")
+    if isinstance(prompt_feedback, dict):
+        block_reason = prompt_feedback.get("block_reason")
+        if block_reason is not None:
+            parts.append(f"안전피드백: {block_reason}")
+    token_usage = meta.get("token_usage")
+    if isinstance(token_usage, dict):
+        input_tokens = token_usage.get("input_tokens")
+        output_tokens = token_usage.get("output_tokens")
+        total_tokens = token_usage.get("total_tokens")
+        if any(v is not None for v in (input_tokens, output_tokens, total_tokens)):
+            parts.append(f"토큰: {input_tokens}/{output_tokens}/{total_tokens}")
+    if not parts:
+        return None
+    return " | ".join(parts)
+
+
+def _render_sources_from_meta(meta: dict[str, Any] | None) -> bool:
+    """메타에 포함된 출처를 표시하고, 표시 여부를 반환한다."""
+
+    if not meta:
+        return False
+    sources = meta.get("sources")
+    if not isinstance(sources, list) or not sources:
+        return False
+    st.caption("출처:")
+    st.markdown("\n".join(f"- {src}" for src in sources))
+    return True
+
+
 def _render_auth_section(base_url: str) -> None:
     """로그인/회원가입 UI를 렌더링한다."""
 
@@ -376,6 +454,7 @@ def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
             event_meta[model] = {
                 "status": ev.get("status"),
                 "elapsed_ms": ev.get("elapsed_ms"),
+                "response_meta": ev.get("response_meta"),
             }
         with st.chat_message("assistant"):
             if answers:
@@ -383,15 +462,20 @@ def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
                     meta = event_meta.get(model) or {}
                     status = meta.get("status")
                     elapsed_ms = meta.get("elapsed_ms")
+                    response_meta = meta.get("response_meta")
                     emoji = _status_to_emoji(status)
                     elapsed_txt = f"{elapsed_ms/1000:.1f}s" if elapsed_ms is not None else "-"
                     st.markdown(f"{emoji} **{model}** ⏱️ {elapsed_txt}")
                     st.write(answer)
+                    meta_text = _format_response_meta(response_meta)
+                    if meta_text:
+                        st.caption(meta_text)
                     src = sources.get(model)
-                    if model == "Perplexity":
-                        st.caption(f"출처: {src or '제공되지 않음'}")
-                    elif src:
-                        st.caption(f"출처: {src}")
+                    if not _render_sources_from_meta(response_meta):
+                        if model == "Perplexity":
+                            st.caption(f"출처: {src or '제공되지 않음'}")
+                        elif src:
+                            st.caption(f"출처: {src}")
             elif events:
                 st.caption("응답 스트림")
                 for ev in events:
@@ -400,14 +484,19 @@ def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
                     src = ev.get("source")
                     status = ev.get("status") or {}
                     elapsed = ev.get("elapsed_ms")
+                    response_meta = ev.get("response_meta")
                     elapsed_txt = f"{elapsed/1000:.1f}s" if elapsed is not None else "-"
                     emoji = _status_to_emoji(status)
                     st.write(f"{emoji} [{model}] {ans}")
                     st.caption(f"⏱️ {elapsed_txt}")
-                    if model == "Perplexity":
-                        st.caption(f"출처: {src or '제공되지 않음'}")
-                    elif src:
-                        st.caption(f"출처: {src}")
+                    meta_text = _format_response_meta(response_meta)
+                    if meta_text:
+                        st.caption(meta_text)
+                    if not _render_sources_from_meta(response_meta):
+                        if model == "Perplexity":
+                            st.caption(f"출처: {src or '제공되지 않음'}")
+                        elif src:
+                            st.caption(f"출처: {src}")
     logger.debug("_render_chat_history:종료")
 
 
@@ -494,6 +583,7 @@ def _send_question(
                     "source": source,
                     "status": status,
                     "elapsed_ms": parsed.get("elapsed_ms"),
+                    "response_meta": parsed.get("response_meta"),
                 }
             )
             if model not in placeholders:
@@ -508,11 +598,15 @@ def _send_question(
                     st.error(answer or "응답이 실패했습니다.")
                 else:
                     st.write(answer)
+                meta_text = _format_response_meta(parsed.get("response_meta"))
+                if meta_text:
+                    st.caption(meta_text)
                 src = source
-                if model == "Perplexity":
-                    st.caption(f"출처: {src or '제공되지 않음'}")
-                elif src:
-                    st.caption(f"출처: {src}")
+                if not _render_sources_from_meta(parsed.get("response_meta")):
+                    if model == "Perplexity":
+                        st.caption(f"출처: {src or '제공되지 않음'}")
+                    elif src:
+                        st.caption(f"출처: {src}")
         elif event_type == "error":
             model = parsed.get("model") or "unknown"
             message = parsed.get("message") or "에러가 발생했습니다."
@@ -527,6 +621,7 @@ def _send_question(
                     "source": None,
                     "status": status or "error",
                     "elapsed_ms": elapsed,
+                    "response_meta": parsed.get("response_meta"),
                 }
             )
             if model not in placeholders:
@@ -605,6 +700,7 @@ def _send_prompt_eval(
                     "source": None,
                     "status": status,
                     "elapsed_ms": elapsed,
+                    "response_meta": parsed.get("response_meta"),
                 }
             )
             if model not in placeholders:
@@ -615,6 +711,10 @@ def _send_prompt_eval(
                     st.error(answer or "응답이 실패했습니다.")
                 else:
                     st.write(answer)
+                meta_text = _format_response_meta(parsed.get("response_meta"))
+                if meta_text:
+                    st.caption(meta_text)
+                _render_sources_from_meta(parsed.get("response_meta"))
         elif event_type == "error":
             message = parsed.get("message") or "에러가 발생했습니다."
             st.error(message)
@@ -626,6 +726,7 @@ def _send_prompt_eval(
                     "source": None,
                     "status": parsed.get("status") or "error",
                     "elapsed_ms": parsed.get("elapsed_ms"),
+                    "response_meta": parsed.get("response_meta"),
                 }
             )
         elif event_type == "summary":
@@ -699,7 +800,26 @@ def _send_prompt_eval(
                             rationale_rows.append(
                                 {
                                     "평가자": item.get("evaluator"),
-                                    "점수": f"{item.get('score'):.2f}" if isinstance(item.get("score"), (int, float)) else item.get("score"),
+                                    "정확성": (
+                                        f"{item.get('accuracy'):.2f}"
+                                        if isinstance(item.get("accuracy"), (int, float))
+                                        else item.get("accuracy")
+                                    ),
+                                    "완전성": (
+                                        f"{item.get('completeness'):.2f}"
+                                        if isinstance(item.get("completeness"), (int, float))
+                                        else item.get("completeness")
+                                    ),
+                                    "명료성": (
+                                        f"{item.get('clarity'):.2f}"
+                                        if isinstance(item.get("clarity"), (int, float))
+                                        else item.get("clarity")
+                                    ),
+                                    "가중치 점수": (
+                                        f"{item.get('score'):.2f}"
+                                        if isinstance(item.get("score"), (int, float))
+                                        else item.get("score")
+                                    ),
                                     "근거": item.get("rationale") or "",
                                 }
                             )
@@ -860,6 +980,7 @@ def main() -> None:
               MIS [label="call_mistral"];
               GRQ [label="call_groq"];
               COH [label="call_cohere"];
+              DS [label="call_deepseek"];
               END1 [label="END", shape=Msquare];
               Q -> INIT;
               INIT -> OAI [label="fan-out"];
@@ -870,6 +991,7 @@ def main() -> None:
               INIT -> MIS;
               INIT -> GRQ;
               INIT -> COH;
+              INIT -> DS;
               OAI -> END1;
               GEM -> END1;
               ANT -> END1;
@@ -878,6 +1000,7 @@ def main() -> None:
               MIS -> END1;
               GRQ -> END1;
               COH -> END1;
+              DS -> END1;
             }
             """
             st.graphviz_chart(chat_dot)
@@ -942,6 +1065,7 @@ def main() -> None:
               MIS_G [label="Generate Mistral"];
               GRQ_G [label="Generate Groq"];
               COH_G [label="Generate Cohere"];
+              DS_G [label="Generate DeepSeek"];
 
               Q2 -> OAI_G;
               Q2 -> GEM_G;
@@ -951,6 +1075,7 @@ def main() -> None:
               Q2 -> MIS_G;
               Q2 -> GRQ_G;
               Q2 -> COH_G;
+              Q2 -> DS_G;
 
               OAI_E [label="Eval by OpenAI (latest)"];
               GEM_E [label="Eval by Gemini (latest)"];
@@ -960,6 +1085,7 @@ def main() -> None:
               MIS_E [label="Eval by Mistral (latest)"];
               GRQ_E [label="Eval by Groq (latest)"];
               COH_E [label="Eval by Cohere (latest)"];
+              DS_E [label="Eval by DeepSeek (latest)"];
 
               OAI_G -> OAI_E;
               GEM_G -> GEM_E;
@@ -969,6 +1095,7 @@ def main() -> None:
               MIS_G -> MIS_E;
               GRQ_G -> GRQ_E;
               COH_G -> COH_E;
+              DS_G -> DS_E;
 
               SUM [label="Summary", shape=Msquare];
               OAI_E -> SUM;
@@ -979,6 +1106,7 @@ def main() -> None:
               MIS_E -> SUM;
               GRQ_E -> SUM;
               COH_E -> SUM;
+              DS_E -> SUM;
             }
             """
             st.graphviz_chart(eval_dot)

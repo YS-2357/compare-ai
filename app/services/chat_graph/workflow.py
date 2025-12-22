@@ -11,7 +11,7 @@ from langgraph.graph import END, StateGraph
 from app.utils.config import get_settings
 from app.utils.logger import get_logger
 
-from .llm_registry import create_uuid
+from app.services.shared.llm_registry import create_uuid
 from .nodes import (
     DEFAULT_MAX_TURNS,
     NODE_CONFIG,
@@ -24,6 +24,7 @@ from .nodes import (
     call_openai,
     call_perplexity,
     call_upstage,
+    call_deepseek,
     dispatch_llm_calls,
     GraphState,
     init_question,
@@ -48,6 +49,7 @@ def build_chat_workflow():
     workflow.add_node("call_mistral", call_mistral)
     workflow.add_node("call_groq", call_groq)
     workflow.add_node("call_cohere", call_cohere)
+    workflow.add_node("call_deepseek", call_deepseek)
 
     workflow.add_conditional_edges("init_question", dispatch_llm_calls)
 
@@ -59,6 +61,7 @@ def build_chat_workflow():
     workflow.add_edge("call_mistral", END)
     workflow.add_edge("call_groq", END)
     workflow.add_edge("call_cohere", END)
+    workflow.add_edge("call_deepseek", END)
 
     workflow.set_entry_point("init_question")
     compiled = workflow.compile()
@@ -190,6 +193,7 @@ async def stream_chat(
                     "answer": answer,
                     "status": api_status,
                     "source": (state.get("raw_sources") or {}).get(model_label),
+                    "response_meta": (state.get("response_meta") or {}).get(model_label),
                     "messages": _normalize_messages(model_msgs),
                     "type": "partial",
                     "turn": turn_index,

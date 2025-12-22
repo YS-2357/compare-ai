@@ -17,7 +17,7 @@ from app.utils.logger import get_logger
 from .errors import build_status_from_error, build_status_from_response
 from .helpers import Answer, build_chat_prompt, build_chat_prompt_input, message_to_text, render_chat_history
 
-from .llm_registry import (
+from app.services.shared.llm_registry import (
     ChatAnthropic,
     ChatCohere,
     ChatGoogleGenerativeAI,
@@ -81,6 +81,7 @@ class GraphState(TypedDict, total=False):
     # 호출 메타(필요 시 사용)
     raw_responses: Annotated[dict[str, str] | None, merge_dicts]
     raw_sources: Annotated[dict[str, str | None] | None, merge_dicts]
+    response_meta: Annotated[dict[str, dict[str, Any] | None] | None, merge_dicts]
     api_status: Annotated[dict[str, Any] | None, merge_dicts]
 
 
@@ -117,7 +118,7 @@ async def call_model_common(
     logger.debug("call_model_common:prompt_input preview=%s", preview_text(prompt_input))
     try:
         llm = llm_factory()
-        content, source, status = await invoke_parsed(llm, prompt_input, label)
+        content, source, status, response_meta = await invoke_parsed(llm, prompt_input, label)
         msg_payload = message_transform(content, source) if message_transform else content
         updated_msgs, summaries = await maybe_summarize_history(
             llm, state, label, [("assistant", msg_payload)], state.get("turn")
@@ -130,6 +131,7 @@ async def call_model_common(
             api_status={label: status},
             raw_responses={label: content},
             raw_sources={label: source},
+            response_meta={label: response_meta},
         )
     except Exception as exc:
         status = build_status_from_error(exc)
@@ -141,6 +143,7 @@ async def call_model_common(
             model_messages={label: [format_response_message(label, error_msg)]},
             raw_responses={label: error_msg},
             raw_sources={label: None},
+            response_meta={label: None},
         )
     finally:
         logger.debug("call_model_common:종료 label=%s", label)
@@ -192,9 +195,20 @@ def build_chat_prompt_input(state: GraphState, label: str) -> str:
     - history: 모델별 인터리브된 최근 히스토리
     - question: 최근 user 메시지(현재 질문)
     """
-    history_text = render_chat_history(state, label, max_messages=MAX_CONTEXT_MESSAGES)
+    user_messages = list(state.get("user_messages") or [])
+    history_user_messages = list(user_messages)
+    for idx in range(len(history_user_messages) - 1, -1, -1):
+        msg = history_user_messages[idx]
+        if isinstance(msg, (list, tuple)) and len(msg) == 2 and msg[0] == "user":
+            del history_user_messages[idx]
+            break
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            del history_user_messages[idx]
+            break
+    history_state = dict(state)
+    history_state["user_messages"] = history_user_messages
+    history_text = render_chat_history(history_state, label, max_messages=MAX_CONTEXT_MESSAGES)
     current_question = ""
-    user_messages = state.get("user_messages") or []
     logger.debug("build_chat_prompt_input:시작 label=%s user_msgs=%d", label, len(user_messages))
     for message in reversed(user_messages):
         # user 역할의 최신 메시지가 곧 현재 질문이다.
@@ -260,7 +274,102 @@ def _extract_source(extras: dict[str, Any] | None) -> str | None:
     return None
 
 
-async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, str | None, dict[str, Any]]:
+def _extract_sources_list(response: Any) -> list[str]:
+    """응답 객체에서 출처 URL 목록을 추출한다."""
+
+    sources: list[str] = []
+
+    def _maybe_add(value: Any) -> None:
+        if isinstance(value, str) and value.startswith("http"):
+            sources.append(value)
+            return
+        if isinstance(value, dict):
+            for key in ("url", "source", "link", "href"):
+                candidate = value.get(key)
+                if isinstance(candidate, str) and candidate.startswith("http"):
+                    sources.append(candidate)
+
+    response_meta = getattr(response, "response_metadata", None)
+    if isinstance(response_meta, dict):
+        for key in ("citations", "sources", "search_results"):
+            items = response_meta.get(key)
+            if isinstance(items, list):
+                for item in items:
+                    _maybe_add(item)
+
+    additional_kwargs = getattr(response, "additional_kwargs", None)
+    if isinstance(additional_kwargs, dict):
+        for key in ("citations", "sources", "search_results"):
+            items = additional_kwargs.get(key)
+            if isinstance(items, list):
+                for item in items:
+                    _maybe_add(item)
+
+    raw_sources = getattr(response, "citations", None) or getattr(response, "sources", None)
+    if isinstance(raw_sources, list):
+        for item in raw_sources:
+            _maybe_add(item)
+
+    seen = set()
+    unique_sources = []
+    for src in sources:
+        if src in seen:
+            continue
+        seen.add(src)
+        unique_sources.append(src)
+    return unique_sources
+
+
+def _extract_response_meta(response: Any) -> dict[str, Any]:
+    """응답 본문 외에 표시할 메타 정보를 추출한다."""
+
+    meta: dict[str, Any] = {}
+    response_meta = getattr(response, "response_metadata", None)
+    additional_kwargs = getattr(response, "additional_kwargs", None)
+    usage_metadata = getattr(response, "usage_metadata", None)
+
+    if isinstance(response_meta, dict):
+        for key in ("model_name", "model", "model_provider"):
+            if response_meta.get(key):
+                meta["model_name"] = response_meta.get(key)
+                break
+        if response_meta.get("finish_reason"):
+            meta["finish_reason"] = response_meta.get("finish_reason")
+        if response_meta.get("stop_reason"):
+            meta["stop_reason"] = response_meta.get("stop_reason")
+        if response_meta.get("safety_ratings"):
+            meta["safety_ratings"] = response_meta.get("safety_ratings")
+        if response_meta.get("prompt_feedback"):
+            meta["prompt_feedback"] = response_meta.get("prompt_feedback")
+        token_usage = response_meta.get("token_usage")
+        if isinstance(token_usage, dict):
+            meta["token_usage"] = {
+                "input_tokens": token_usage.get("prompt_tokens"),
+                "output_tokens": token_usage.get("completion_tokens"),
+                "total_tokens": token_usage.get("total_tokens"),
+            }
+
+    if isinstance(additional_kwargs, dict) and "refusal" in additional_kwargs:
+        meta["refusal"] = additional_kwargs.get("refusal")
+
+    if isinstance(usage_metadata, dict):
+        meta.setdefault(
+            "token_usage",
+            {
+                "input_tokens": usage_metadata.get("input_tokens"),
+                "output_tokens": usage_metadata.get("output_tokens"),
+                "total_tokens": usage_metadata.get("total_tokens"),
+            },
+        )
+
+    sources = _extract_sources_list(response)
+    if sources:
+        meta["sources"] = sources
+
+    return meta
+
+
+async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, str | None, dict[str, Any], dict[str, Any]]:
     """LLM을 한 번 호출한 뒤 파서를 적용하고, 실패하면 원문을 그대로 사용한다."""
 
     logger.debug("invoke_parsed:시작 label=%s", label)
@@ -268,6 +377,8 @@ async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, s
     prompt = build_chat_prompt()
     chain = prompt | llm
     response = await chain.ainvoke({"question": prompt_input})
+    response_meta = _extract_response_meta(response)
+    sources_list = response_meta.get("sources") if isinstance(response_meta, dict) else None
     status = build_status_from_response(response)
     raw_text = response.content if hasattr(response, "content") else str(response)
     if raw_text is None:
@@ -278,13 +389,17 @@ async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, s
         source = parsed.source or _extract_source(getattr(parsed, "model_extra", None))
         if not source:
             source = _extract_source(getattr(response, "response_metadata", None))
+        if not source and isinstance(sources_list, list) and sources_list:
+            source = sources_list[0]
         logger.info("invoke_parsed:파싱 성공 label=%s status=%s source=%s", label, status.get("status"), source)
     except Exception:
         content = raw_text
         source = _extract_source(getattr(response, "response_metadata", None))
+        if not source and isinstance(sources_list, list) and sources_list:
+            source = sources_list[0]
         logger.warning("invoke_parsed:파싱 실패 label=%s 원문사용", label)
     logger.debug("invoke_parsed:종료 label=%s content_preview=%s", label, preview_text(content))
-    return content, source, status
+    return content, source, status, response_meta
 
 
 def format_response_message(label: str, payload: Any) -> tuple[str, str]:
@@ -321,6 +436,7 @@ def init_question(state: GraphState) -> GraphState:
         active_models=active_models,
         raw_responses=state.get("raw_responses") or {},
         raw_sources=state.get("raw_sources") or {},
+        response_meta=state.get("response_meta") or {},
         api_status=state.get("api_status") or {},
         user_messages=user_messages,
         model_messages=model_messages,
@@ -459,6 +575,23 @@ async def call_cohere(state: GraphState) -> GraphState:
     return result
 
 
+async def call_deepseek(state: GraphState) -> GraphState:
+    """DeepSeek 모델을 호출한다."""
+
+    def llm_factory() -> Any:
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise RuntimeError("DEEPSEEK_API_KEY is missing")
+        settings = get_settings()
+        model_name = resolve_model_name(state, "deepseek", settings.model_deepseek)
+        return ChatOpenAI(model=model_name, api_key=api_key, base_url=settings.deepseek_base_url)
+
+    logger.debug("call_deepseek:시작")
+    result = await call_model_common("DeepSeek", state, llm_factory)
+    logger.debug("call_deepseek:종료")
+    return result
+
+
 NODE_CONFIG: dict[str, dict[str, str]] = {
     "call_openai": {"label": "OpenAI", "answer_key": "openai_answer", "status_key": "openai_status"},
     "call_gemini": {"label": "Gemini", "answer_key": "gemini_answer", "status_key": "gemini_status"},
@@ -468,6 +601,7 @@ NODE_CONFIG: dict[str, dict[str, str]] = {
     "call_mistral": {"label": "Mistral", "answer_key": "mistral_answer", "status_key": "mistral_status"},
     "call_groq": {"label": "Groq", "answer_key": "groq_answer", "status_key": "groq_status"},
     "call_cohere": {"label": "Cohere", "answer_key": "cohere_answer", "status_key": "cohere_status"},
+    "call_deepseek": {"label": "DeepSeek", "answer_key": "deepseek_answer", "status_key": "deepseek_status"},
 }
 
 
@@ -507,6 +641,7 @@ __all__ = [
     "call_mistral",
     "call_groq",
     "call_cohere",
+    "call_deepseek",
     "format_response_message",
     "resolve_model_name",
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -72,9 +73,9 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     - `models`(dict): 공급자별 기본 모델을 덮어쓸 때 사용(예: `{"openai": "gpt-4o-mini"}`).
 
     응답 스트림(한 줄씩 JSON):
-    - `type="partial"`: 모델별 진행 중 결과. `model`, `answer`, `elapsed_ms`, `status`(LLM 응답 상태), `source`(출처) 포함.
+    - `type="partial"`: 모델별 진행 중 결과. `model`, `answer`, `elapsed_ms`, `status`(LLM 응답 상태), `source`(출처), `response_meta`(모델/토큰/종료 사유 등) 포함.
     - `type="error"`: 특정 모델/노드 오류. `message`, `model`, `node`, `status` 포함.
-    - `type="summary"`: 전체 완료 메타. `answers`(모델별 최종 답변), `order`(완료 순서), `api_status`, `durations_ms`, `sources`, `messages`, `errors`, `usage_limit`, `usage_remaining` 포함.
+    - `type="summary"`: 전체 완료 메타. `answers`(모델별 최종 답변), `order`(완료 순서), `api_status`, `durations_ms`, `sources`, `response_meta`, `messages`, `errors`, `usage_limit`, `usage_remaining` 포함.
 
     헤더:
     - `X-Usage-Limit`, `X-Usage-Remaining`: 남은 일일 호출 횟수(관리자는 null).
@@ -106,6 +107,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
         api_status = {}
         durations_ms: dict[str, int] = {}
         sources: dict[str, str | None] = {}
+        response_meta: dict[str, dict[str, Any] | None] = {}
         messages = [{"role": "user", "content": question}]
         seen_messages = {("user", question)}
         completion_order: list[str] = []
@@ -142,6 +144,8 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                             api_status[model] = status
                         if event.get("source") is not None:
                             sources[model] = event.get("source")
+                        if event.get("response_meta") is not None:
+                            response_meta[model] = event.get("response_meta")
                         elapsed_ms = event.get("elapsed_ms")
                         if elapsed_ms is not None:
                             durations_ms[model] = int(elapsed_ms)
@@ -192,6 +196,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                     "api_status": api_status,
                     "durations_ms": durations_ms,
                     "sources": sources,
+                    "response_meta": response_meta,
                     "messages": messages,
                     "order": completion_order,
                     "primary_model": primary_model,
@@ -248,9 +253,9 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     description=(
         "공통 프롬프트로 여러 모델의 답변을 생성한 뒤, 벤더별 최신 모델이 교차 평가하여 점수/근거를 NDJSON 스트림으로 반환합니다.\n\n"
         "응답 이벤트:\n"
-        "- `type=\"partial\"` & `phase=\"generation\"`: 모델별 원본 답변이 도착할 때 발생. `model`, `answer`, `status`, `elapsed_ms` 포함.\n"
+        "- `type=\"partial\"` & `phase=\"generation\"`: 모델별 원본 답변이 도착할 때 발생. `model`, `answer`, `status`, `elapsed_ms`, `response_meta` 포함.\n"
         "- `type=\"partial\"` & `phase=\"evaluation\"`: 평가자가 각 타깃 모델을 채점할 때 발생. `evaluator`, `target_model`, `score`, `rationale`, `status`, `elapsed_ms` 포함.\n"
-        "- `type=\"summary\"`: 모든 평가가 끝난 후 최종 점수 표(`scores`), 평가자별 원본 점수/근거(`evaluations`), 평균점수(`avg_score`)를 포함.\n"
+        "- `type=\"summary\"`: 모든 평가가 끝난 후 최종 점수 표(`scores`), 평가자별 원본 점수/근거(`evaluations`), 평균점수(`avg_score`), 모델별 `response_meta`를 포함.\n"
         "- `type=\"error\"`: 처리 중 오류.\n\n"
         "옵션:\n"
         "- `reference_answer`: 모범 답변 예시를 넣으면 평가 프롬프트에 참고용으로 포함(없으면 기본 루브릭으로 평가).\n\n"

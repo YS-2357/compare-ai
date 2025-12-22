@@ -44,8 +44,10 @@ class Settings:
     model_upstage: str = "solar-mini"
     model_perplexity: str = "sonar"
     model_mistral: str = "mistral-large-latest"
-    model_groq: str = "llama3-70b-8192"
-    model_cohere: str = "command-r-plus"
+    model_groq: str = "llama-3.3-70b-versatile"
+    model_cohere: str = "command-r7b-12-2024"
+    model_deepseek: str = "deepseek-chat"
+    deepseek_base_url: str = "https://api.deepseek.com/v1"
     supabase_jwks_cache_ttl: int = 300
     supabase_http_timeout: float = 5.0
     upstash_http_timeout: float = 5.0
@@ -82,8 +84,10 @@ class Settings:
             model_upstage=os.getenv("MODEL_UPSTAGE", "solar-mini"),
             model_perplexity=os.getenv("MODEL_PERPLEXITY", "sonar"),
             model_mistral=os.getenv("MODEL_MISTRAL", "mistral-large-latest"),
-            model_groq=os.getenv("MODEL_GROQ", "llama3-70b-8192"),
-            model_cohere=os.getenv("MODEL_COHERE", "command-r-plus"),
+            model_groq=os.getenv("MODEL_GROQ", "llama-3.3-70b-versatile"),
+            model_cohere=os.getenv("MODEL_COHERE", "command-r7b-12-2024"),
+            model_deepseek=os.getenv("MODEL_DEEPSEEK", "deepseek-chat"),
+            deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             supabase_jwks_cache_ttl=int(os.getenv("SUPABASE_JWKS_CACHE_TTL", "300")),
             supabase_http_timeout=float(os.getenv("SUPABASE_HTTP_TIMEOUT", "5")),
             upstash_http_timeout=float(os.getenv("UPSTASH_HTTP_TIMEOUT", "5")),

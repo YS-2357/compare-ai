@@ -8,7 +8,8 @@ LATEST_EVAL_MODELS: dict[str, str] = {
     "Upstage": "solar-mini",
     "Mistral": "mistral-large-latest",
     "Groq": "llama-3.3-70b-versatile",
-    "Cohere": "command-r-plus",
+    "Cohere": "command-a-03-2025",
+    "DeepSeek": "deepseek-reasoner",
 }
 
 MODEL_ALIASES = {
@@ -24,4 +25,5 @@ MODEL_ALIASES = {
     "Mistral": "Mistral",
     "Groq": "Groq",
     "Cohere": "Cohere",
+    "DeepSeek": "DeepSeek",
 }

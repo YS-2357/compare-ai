@@ -8,6 +8,7 @@ partial(모델별 응답)과 summary(평가 결과 테이블)를 스트리밍한
 from __future__ import annotations
 
 import asyncio
+import os
 import time
 from typing import Any, AsyncIterator
 
@@ -18,7 +19,7 @@ from pydantic import BaseModel, Field
 from app.utils.config import get_settings
 from app.utils.logger import get_logger
 from app.services.chat_graph.errors import build_status_from_error, build_status_from_response
-from app.services.chat_graph.llm_registry import (
+from app.services.shared.llm_registry import (
     ChatAnthropic,
     ChatCohere,
     ChatGoogleGenerativeAI,
@@ -50,6 +51,15 @@ class ScoreList(BaseModel):
     """평가 모델 출력 스키마."""
 
     scores: list[Score]
+
+
+def _build_deepseek_llm(model_name: str, base_url: str) -> ChatOpenAI:
+    """DeepSeek OpenAI 호환 클라이언트를 생성한다."""
+
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY is missing")
+    return ChatOpenAI(model=model_name, api_key=api_key, base_url=base_url)
 
 
 def _extract_sources(raw_response: Any) -> list[str]:
@@ -90,6 +100,55 @@ def _extract_sources(raw_response: Any) -> list[str]:
     return unique_sources
 
 
+def _extract_response_meta(response: Any) -> dict[str, Any]:
+    """응답 본문 외에 표시할 메타 정보를 추출한다."""
+
+    meta: dict[str, Any] = {}
+    response_meta = getattr(response, "response_metadata", None)
+    additional_kwargs = getattr(response, "additional_kwargs", None)
+    usage_metadata = getattr(response, "usage_metadata", None)
+
+    if isinstance(response_meta, dict):
+        for key in ("model_name", "model", "model_provider"):
+            if response_meta.get(key):
+                meta["model_name"] = response_meta.get(key)
+                break
+        if response_meta.get("finish_reason"):
+            meta["finish_reason"] = response_meta.get("finish_reason")
+        if response_meta.get("stop_reason"):
+            meta["stop_reason"] = response_meta.get("stop_reason")
+        if response_meta.get("safety_ratings"):
+            meta["safety_ratings"] = response_meta.get("safety_ratings")
+        if response_meta.get("prompt_feedback"):
+            meta["prompt_feedback"] = response_meta.get("prompt_feedback")
+        token_usage = response_meta.get("token_usage")
+        if isinstance(token_usage, dict):
+            meta["token_usage"] = {
+                "input_tokens": token_usage.get("prompt_tokens"),
+                "output_tokens": token_usage.get("completion_tokens"),
+                "total_tokens": token_usage.get("total_tokens"),
+            }
+
+    if isinstance(additional_kwargs, dict) and "refusal" in additional_kwargs:
+        meta["refusal"] = additional_kwargs.get("refusal")
+
+    if isinstance(usage_metadata, dict):
+        meta.setdefault(
+            "token_usage",
+            {
+                "input_tokens": usage_metadata.get("input_tokens"),
+                "output_tokens": usage_metadata.get("output_tokens"),
+                "total_tokens": usage_metadata.get("total_tokens"),
+            },
+        )
+
+    sources = _extract_sources(response)
+    if sources:
+        meta["sources"] = sources
+
+    return meta
+
+
 def _llm_factory(label: str) -> Any:
     """모델 라벨에 맞는 LLM 팩토리를 반환한다."""
 
@@ -104,6 +163,7 @@ def _llm_factory(label: str) -> Any:
         "Mistral": lambda: ChatMistralAI(model=sc.model_mistral),
         "Groq": lambda: ChatGroq(model=sc.model_groq),
         "Cohere": lambda: ChatCohere(model=sc.model_cohere),
+        "DeepSeek": lambda: _build_deepseek_llm(sc.model_deepseek, sc.deepseek_base_url),
     }
     if label not in factories:
         raise ValueError(f"지원하지 않는 모델 라벨: {label}")
@@ -150,6 +210,10 @@ def _select_eval_llm(active_labels: list[str]) -> tuple[Any, str]:
             model_name = LATEST_EVAL_MODELS.get("Cohere") or sc.model_cohere
             logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
             return ChatCohere(model=model_name), model_name
+        if label == "DeepSeek":
+            model_name = LATEST_EVAL_MODELS.get("DeepSeek") or sc.model_deepseek
+            logger.info("_select_eval_llm:선택 evaluator=%s model=%s", label, model_name)
+            return _build_deepseek_llm(model_name, sc.deepseek_base_url), model_name
 
     # fallback: OpenAI 기본
     model_name = LATEST_EVAL_MODELS.get("OpenAI") or sc.model_openai
@@ -185,6 +249,7 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
         llm = _llm_factory(label)
         response = await llm.ainvoke(prompt_text)
         status = build_status_from_response(response)
+        response_meta = _extract_response_meta(response)
         content = getattr(response, "content", None) or str(response)
         logger.debug("_call_single_model:raw_response label=%s raw=%s", label, repr(response))
         sources = _extract_sources(response)
@@ -199,6 +264,7 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
             "status": status,
             "elapsed_ms": elapsed_ms,
             "source": sources[0] if sources else None,
+            "response_meta": response_meta,
             "error": False,
         }
     except Exception as exc:
@@ -213,6 +279,7 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
             "status": status,
             "elapsed_ms": elapsed_ms,
             "source": None,
+            "response_meta": None,
             "error": True,
         }
 
@@ -462,6 +529,7 @@ async def stream_prompt_eval(
             "Mistral",
             "Groq",
             "Cohere",
+            "DeepSeek",
         ]
         models: list[str] = []
         for m in raw_models:
@@ -486,6 +554,7 @@ async def stream_prompt_eval(
                 "answer": res["answer"],
                 "status": res.get("status") or {},
                 "source": res.get("source"),
+                "response_meta": res.get("response_meta"),
                 "elapsed_ms": res.get("elapsed_ms"),
             }
 
@@ -553,6 +622,7 @@ async def stream_prompt_eval(
             "result": {
                 "question": question,
                 "answers": {r["model"]: r.get("answer") for r in results},
+                "response_meta": {r["model"]: r.get("response_meta") for r in results},
                 "scores": aggregated_scores,
                 "avg_score": avg_score,
                 "evaluations": evaluation_outputs,
