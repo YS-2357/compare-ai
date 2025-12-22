@@ -174,7 +174,12 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
         logger.debug("_call_single_model:종료 label=%s", label)
 
 
-def _build_eval_prompt(question: str, anonymized: list[tuple[str, str]], reference: str | None) -> ChatPromptTemplate:
+def _build_eval_prompt(
+    question: str,
+    prompt_text: str,
+    anonymized: list[tuple[str, str]],
+    reference: str | None,
+) -> ChatPromptTemplate:
     """블라인드 평가 프롬프트를 생성한다."""
 
     logger.debug("_build_eval_prompt:시작 answers=%d", len(anonymized))
@@ -193,7 +198,7 @@ def _build_eval_prompt(question: str, anonymized: list[tuple[str, str]], referen
         "Score each answer 0-10 and give a brief rationale. Do not assign ranks; the system will rank later.\n"
         "Return JSON only with the provided schema."
     )
-    user = f"Question:\n{question}\n\nAnswers:\n{examples}"
+    user = f"Question:\n{question}\n\nPrompt Instructions:\n{prompt_text}\n\nAnswers:\n{examples}"
     if reference:
         user += f"\n\n[Reference Answer]\n{reference}"
     parser = PydanticOutputParser(pydantic_object=ScoreList)
@@ -210,7 +215,11 @@ def _build_eval_prompt(question: str, anonymized: list[tuple[str, str]], referen
 
 
 async def _evaluate_answers(
-    question: str, results: list[dict[str, Any]], evaluator_label: str, reference: str | None
+    question: str,
+    prompt_text: str,
+    results: list[dict[str, Any]],
+    evaluator_label: str,
+    reference: str | None,
 ) -> dict[str, Any]:
     """단일 평가 모델로 모든 응답을 블라인드 평가."""
 
@@ -219,7 +228,7 @@ async def _evaluate_answers(
     anonymized = [(f"resp_{i+1}", r.get("answer", "")) for i, r in enumerate(results)]
     id_to_model = {f"resp_{i+1}": r["model"] for i, r in enumerate(results)}
 
-    prompt = _build_eval_prompt(question, anonymized, reference)
+    prompt = _build_eval_prompt(question, prompt_text, anonymized, reference)
     logger.debug("_evaluate_answers:prompt_preview=%s", str(prompt)[:300])
     parser = PydanticOutputParser(pydantic_object=ScoreList)
     start_eval = time.perf_counter()
@@ -418,10 +427,13 @@ async def stream_prompt_eval(
             }
 
         # 평가 단계
+        prompt_for_eval = prompt or DEFAULT_PROMPT
         evaluation_tasks = []
         for evaluator_label in models:
             evaluation_tasks.append(
-                asyncio.create_task(_evaluate_answers(question, results, evaluator_label, reference_answer))
+                asyncio.create_task(
+                    _evaluate_answers(question, prompt_for_eval, results, evaluator_label, reference_answer)
+                )
             )
         evaluation_outputs: list[dict[str, Any]] = []
         evaluation_results = await asyncio.gather(*evaluation_tasks, return_exceptions=True)
