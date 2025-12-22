@@ -12,6 +12,7 @@ from .llm_registry import (
     ChatUpstage,
     create_uuid,
 )
+from .errors import build_status_from_error, build_status_from_response
 
 __all__ = [
     "MODEL_ALIASES",
@@ -25,4 +26,6 @@ __all__ = [
     "ChatPerplexity",
     "ChatUpstage",
     "create_uuid",
+    "build_status_from_error",
+    "build_status_from_response",
 ]
