@@ -19,7 +19,7 @@ class AskRequest(BaseModel):
     models: dict[str, str] | None = Field(
         None,
         description="공급자별 모델 덮어쓰기 (provider:model)",
-        examples=[{"openai": "gpt-4o-mini", "gemini": "gemini-2.5-flash-lite"}],
+        examples=[{"openai": "gpt-4.1-mini", "gemini": "gemini-2.5-flash-lite"}],
     )
 
 

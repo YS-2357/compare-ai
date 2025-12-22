@@ -21,7 +21,7 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
     "openai": {
         "label": "OpenAI",
         "env": "MODEL_OPENAI",
-        "choices": ["gpt-4o-mini", "gpt-4o-nano", "gpt-4o"],
+        "choices": ["gpt-4o", "gpt-4.1", "gpt-4.1-mini"],
     },
     "gemini": {
         "label": "Google Gemini",
@@ -45,7 +45,7 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
     "perplexity": {
         "label": "Perplexity Sonar",
         "env": "MODEL_PERPLEXITY",
-        "choices": ["sonar", "sonar-pro", "sonar-medium-online"],
+        "choices": ["sonar", "sonar-pro", "sonar-reasoning"],
     },
     "mistral": {
         "label": "Mistral",
@@ -87,9 +87,11 @@ def _default_model(provider: str) -> str:
         _log_model_default_if_changed(provider, env_value, "환경변수")
         return env_value
     provider_defaults = {
+        "openai": "gpt-4.1-mini",
         "groq": "llama-3.3-70b-versatile",
         "cohere": "command-r7b-12-2024",
         "deepseek": "deepseek-chat",
+        "mistral": "mistral-small-latest",
     }
     preferred = provider_defaults.get(provider)
     if preferred and preferred in meta["choices"]:
@@ -97,8 +99,7 @@ def _default_model(provider: str) -> str:
         return preferred
     # 가벼운/저렴한 모델을 기본값으로 선택(리스트에 없으면 첫 번째)
     cheap_candidates = [
-        "gpt-4o-mini",
-        "gpt-4o-nano",
+        "gpt-4.1-mini",
         "gpt-5-nano",
         "gemini-2.5-flash-lite",
         "claude-3-haiku",
@@ -134,10 +135,15 @@ def _ensure_model_selections() -> None:
     logger.debug("_ensure_model_selections:시작")
     defaults = {key: _default_model(key) for key in MODEL_OPTIONS}
     selections = st.session_state.get("model_selections") or {}
+    locked = st.session_state.get("model_selections_locked") or {}
     merged = {}
     for key, default in defaults.items():
-        merged[key] = selections.get(key, default)
+        if locked.get(key):
+            merged[key] = selections.get(key, default)
+        else:
+            merged[key] = default
     st.session_state["model_selections"] = merged
+    st.session_state["model_selections_locked"] = locked
     logger.debug("_ensure_model_selections:종료 selections=%s", merged)
 
 
@@ -157,6 +163,8 @@ def _render_model_selector() -> None:
             index=index,
             key=f"model_select_{key}",
         )
+        if selection != current:
+            st.session_state.setdefault("model_selections_locked", {})[key] = True
         st.session_state["model_selections"][key] = selection
     logger.debug("_render_model_selector:종료 selections=%s", st.session_state.get("model_selections"))
 
@@ -750,6 +758,9 @@ def _send_prompt_eval(
                         per_model.setdefault(target, []).append(
                             {
                                 "evaluator": evaluator,
+                                "accuracy": sc.get("accuracy"),
+                                "completeness": sc.get("completeness"),
+                                "clarity": sc.get("clarity"),
                                 "score": sc.get("score"),
                                 "rationale": sc.get("rationale"),
                             }

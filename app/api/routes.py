@@ -70,7 +70,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     - `question`(str): 필수 질문.
     - `history`(list[{"role","content"}]): 이전 대화 히스토리(없으면 새 대화로 처리).
     - `turn`/`max_turns`: 멀티턴 제한 제어(관리자는 우회).
-    - `models`(dict): 공급자별 기본 모델을 덮어쓸 때 사용(예: `{"openai": "gpt-4o-mini"}`).
+    - `models`(dict): 공급자별 기본 모델을 덮어쓸 때 사용(예: `{"openai": "gpt-4.1-mini"}`).
 
     응답 스트림(한 줄씩 JSON):
     - `type="partial"`: 모델별 진행 중 결과. `model`, `answer`, `elapsed_ms`, `status`(LLM 응답 상태), `source`(출처), `response_meta`(모델/토큰/종료 사유 등) 포함.
@@ -237,7 +237,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                             "evaluations": [
                                 {
                                     "evaluator": "OpenAI",
-                                    "model": "gpt-4o-mini",
+                                    "model": "gpt-4.1-mini",
                                     "scores": [{"target": "Gemini", "score": 8, "rationale": "간결/정확"}],
                                     "status": {"status": 200, "detail": "stop"},
                                     "elapsed_ms": 3500,
