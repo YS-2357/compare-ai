@@ -196,6 +196,7 @@ def _build_eval_prompt(
         f"{rubric_line}\n"
         "Never fabricate; answer only what is supported. If information is missing, state that you do not know.\n"
         "Score each answer 0-10 and give a brief rationale. Do not assign ranks; the system will rank later.\n"
+        "Example JSON: {\"scores\": [{\"id\": \"resp_1\", \"score\": 8.0, \"rationale\": \"...\"}]}\n"
         "Return JSON only with the provided schema."
     )
     user = f"Question:\n{question}\n\nPrompt Instructions:\n{prompt_text}\n\nAnswers:\n{examples}"
@@ -407,9 +408,9 @@ async def stream_prompt_eval(
                 models.append(canonical)
         logger.info("PromptEval 실행: models=%s", ", ".join(models))
 
+        prompt_text = _build_model_prompt(question, prompt)
         tasks = []
         for label in models:
-            prompt_text = _build_model_prompt(question, prompt)
             tasks.append(asyncio.create_task(_call_single_model(label, prompt_text)))
 
         results: list[dict[str, Any]] = []
@@ -426,13 +427,14 @@ async def stream_prompt_eval(
                 "elapsed_ms": res.get("elapsed_ms"),
             }
 
-        # 평가 단계
-        prompt_for_eval = prompt or DEFAULT_PROMPT
+        # 평가 단계 (실패 응답 제외)
+        success_results = [r for r in results if not r.get("error")]
+        prompt_for_eval = prompt_text
         evaluation_tasks = []
         for evaluator_label in models:
             evaluation_tasks.append(
                 asyncio.create_task(
-                    _evaluate_answers(question, prompt_for_eval, results, evaluator_label, reference_answer)
+                    _evaluate_answers(question, prompt_for_eval, success_results, evaluator_label, reference_answer)
                 )
             )
         evaluation_outputs: list[dict[str, Any]] = []
@@ -458,6 +460,24 @@ async def stream_prompt_eval(
                 )
             else:
                 evaluation_outputs.append(ev_res)
+
+        # 평가 실패/미응답 모델은 점수 -1로 보강
+        failed_models = [r["model"] for r in results if r.get("error")]
+        if failed_models:
+            for ev in evaluation_outputs:
+                scored_models = {sc.get("model") for sc in ev.get("scores", [])}
+                for model in failed_models:
+                    if model in scored_models:
+                        continue
+                    ev.setdefault("scores", []).append(
+                        {
+                            "model": model,
+                            "id": f"resp_missing_{model}",
+                            "score": -1,
+                            "rank": None,
+                            "rationale": "response failed",
+                        }
+                    )
 
         aggregated_scores = _aggregate_scores(results, evaluation_outputs)
         numeric_scores = [
