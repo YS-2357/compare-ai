@@ -68,7 +68,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
 
     요청 본문:
     - `question`(str): 필수 질문.
-    - `history`(list[{"role","content"}]): 이전 대화 히스토리(없으면 새 대화로 처리).
+    - `history`(list[{"role","content"}]): 이전 대화 히스토리(없으면 새 대화로 처리). 현재 질문은 서버가 별도 분리해 `[Current Question]`에 넣는다.
     - `turn`/`max_turns`: 멀티턴 제한 제어(관리자는 우회).
     - `models`(dict): 공급자별 기본 모델을 덮어쓸 때 사용(예: `{"openai": "gpt-4.1-mini"}`).
 
