@@ -38,7 +38,10 @@ class Score(BaseModel):
     """단일 답변 평가 결과."""
 
     id: str = Field(..., description="익명 응답 ID")
-    score: float = Field(..., description="0~10 점수")
+    accuracy: float | None = Field(default=None, description="정확성(0~10)")
+    completeness: float | None = Field(default=None, description="완전성(0~10)")
+    clarity: float | None = Field(default=None, description="명료성(0~10)")
+    score: float | None = Field(default=None, description="가중치 적용 전 점수(옵션)")
     rank: int | None = Field(default=None, description="순위 (없으면 백엔드에서 산출)")
     rationale: str = Field(..., description="짧은 근거")
 
@@ -195,8 +198,8 @@ def _build_eval_prompt(
         "All answers are in Korean. Do NOT guess the original model/provider.\n"
         f"{rubric_line}\n"
         "Never fabricate; answer only what is supported. If information is missing, state that you do not know.\n"
-        "Score each answer 0-10 and give a brief rationale. Do not assign ranks; the system will rank later.\n"
-        "Example JSON: {{\"scores\": [{{\"id\": \"resp_1\", \"score\": 8.0, \"rationale\": \"...\"}}]}}\n"
+        "Score each answer on accuracy, completeness, and clarity (0-10 each). Do not assign ranks; the system will rank later.\n"
+        "Example JSON: {{\"scores\": [{{\"id\": \"resp_1\", \"accuracy\": 8.5, \"completeness\": 7.0, \"clarity\": 9.0, \"rationale\": \"...\"}}]}}\n"
         "Return JSON only with the provided schema."
     )
     user = f"Question:\n{question}\n\nPrompt Instructions:\n{prompt_text}\n\nAnswers:\n{examples}"
@@ -265,16 +268,38 @@ async def _evaluate_answers(
         else:
             raw_text = str(raw) if raw is not None else ""
         parsed: ScoreList = parser.parse(raw_text)
-        scores = [
-            {
-                "model": id_to_model.get(sc.id, sc.id),
-                "id": sc.id,
-                "score": sc.score,
-                "rank": sc.rank,
-                "rationale": sc.rationale,
-            }
-            for sc in parsed.scores
-        ]
+        scores = []
+        for sc in parsed.scores:
+            acc = sc.accuracy
+            comp = sc.completeness
+            clar = sc.clarity
+            if all(isinstance(v, (int, float)) for v in (acc, comp, clar)):
+                weighted = round(float(acc) * 0.5 + float(comp) * 0.3 + float(clar) * 0.2, 2)
+            elif isinstance(sc.score, (int, float)):
+                weighted = float(sc.score)
+            else:
+                weighted = -1
+            logger.debug(
+                "가중치 점수 계산 evaluator=%s id=%s acc=%s comp=%s clar=%s weighted=%s",
+                evaluator_label,
+                sc.id,
+                acc,
+                comp,
+                clar,
+                weighted,
+            )
+            scores.append(
+                {
+                    "model": id_to_model.get(sc.id, sc.id),
+                    "id": sc.id,
+                    "score": weighted,
+                    "rank": sc.rank,
+                    "rationale": sc.rationale,
+                    "accuracy": acc,
+                    "completeness": comp,
+                    "clarity": clar,
+                }
+            )
         elapsed_ms = int((time.perf_counter() - start_eval) * 1000)
         logger.info("평가 성공: evaluator=%s model=%s elapsed_ms=%s", evaluator_label, eval_model_name, elapsed_ms)
         logger.debug("_evaluate_answers:raw_response evaluator=%s body=%s", evaluator_label, raw_text)
@@ -341,6 +366,7 @@ def _aggregate_scores(results: list[dict[str, Any]], evaluations: list[dict[str,
                             rationales.append(f"[{evaluator}] {sc['rationale']}")
             valid_scores = [s for s in collected_scores if isinstance(s, (int, float)) and s >= 0]
             avg = round(sum(valid_scores) / len(valid_scores), 2) if valid_scores else None
+            logger.debug("집계 점수 target=%s scores=%s avg=%s", target, valid_scores, avg)
             aggregated.append(
                 {
                     "model": target,
