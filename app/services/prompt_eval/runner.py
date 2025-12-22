@@ -84,6 +84,14 @@ def _extract_sources(raw_response: Any) -> list[str]:
                 for item in items:
                     _maybe_add(item)
 
+    additional_kwargs = getattr(raw_response, "additional_kwargs", None)
+    if isinstance(additional_kwargs, dict):
+        for key in ("citations", "sources", "search_results"):
+            items = additional_kwargs.get(key)
+            if isinstance(items, list):
+                for item in items:
+                    _maybe_add(item)
+
     raw_sources = getattr(raw_response, "citations", None) or getattr(raw_response, "sources", None)
     if isinstance(raw_sources, list):
         for item in raw_sources:
@@ -158,7 +166,7 @@ def _llm_factory(label: str) -> Any:
         "OpenAI": lambda: ChatOpenAI(model=sc.model_openai),
         "Gemini": lambda: ChatGoogleGenerativeAI(model=sc.model_gemini, temperature=0),
         "Anthropic": lambda: ChatAnthropic(model=sc.model_anthropic),
-        "Perplexity": lambda: ChatPerplexity(model=sc.model_perplexity),
+        "Perplexity": lambda: _build_perplexity_llm(sc.model_perplexity),
         "Upstage": lambda: ChatUpstage(model=sc.model_upstage),
         "Mistral": lambda: ChatMistralAI(model=sc.model_mistral),
         "Groq": lambda: ChatGroq(model=sc.model_groq),
@@ -170,6 +178,26 @@ def _llm_factory(label: str) -> Any:
     llm = factories[label]()
     logger.debug("_llm_factory:종료 label=%s", label)
     return llm
+
+
+def _build_perplexity_llm(model_name: str) -> ChatPerplexity:
+    """Perplexity 클라이언트를 생성한다."""
+
+    api_key = os.getenv("PPLX_API_KEY")
+    if not api_key:
+        raise RuntimeError("PPLX_API_KEY is missing")
+    return ChatPerplexity(model=model_name, pplx_api_key=api_key)
+
+
+def _append_sources_block(content: str, sources: list[str] | None) -> str:
+    """평가용 응답에 출처 섹션을 추가한다."""
+
+    if "[Sources]" in content:
+        return content
+    if sources:
+        lines = "\n".join(f"- {src}" for src in sources)
+        return f"{content}\n\n[Sources]\n{lines}"
+    return f"{content}\n\n[Sources]\n- 제공되지 않음"
 
 
 def _select_eval_llm(active_labels: list[str]) -> tuple[Any, str]:
@@ -253,14 +281,14 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
         content = getattr(response, "content", None) or str(response)
         logger.debug("_call_single_model:raw_response label=%s raw=%s", label, repr(response))
         sources = _extract_sources(response)
-        if sources:
-            content = f"{content}\n\n[Sources]\n" + "\n".join(f"- {src}" for src in sources)
+        content_with_sources = _append_sources_block(content, sources)
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         logger.info("%s 호출 성공 (elapsed_ms=%s)", label, elapsed_ms)
         logger.debug("_call_single_model:raw_response label=%s body=%s", label, str(content))
         return {
             "model": label,
             "answer": content,
+            "answer_with_sources": content_with_sources,
             "status": status,
             "elapsed_ms": elapsed_ms,
             "source": sources[0] if sources else None,
@@ -276,6 +304,7 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
         return {
             "model": label,
             "answer": message,
+            "answer_with_sources": message,
             "status": status,
             "elapsed_ms": elapsed_ms,
             "source": None,
@@ -334,7 +363,7 @@ async def _evaluate_answers(
 
     logger.debug("_evaluate_answers:시작 evaluator=%s answers=%d", evaluator_label, len(results))
     # 익명 ID 매핑
-    anonymized = [(f"resp_{i+1}", r.get("answer", "")) for i, r in enumerate(results)]
+    anonymized = [(f"resp_{i+1}", r.get("answer_with_sources") or r.get("answer", "")) for i, r in enumerate(results)]
     id_to_model = {f"resp_{i+1}": r["model"] for i, r in enumerate(results)}
 
     prompt = _build_eval_prompt(question, prompt_text, anonymized, reference)
