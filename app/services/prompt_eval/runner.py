@@ -196,7 +196,7 @@ def _build_eval_prompt(
         f"{rubric_line}\n"
         "Never fabricate; answer only what is supported. If information is missing, state that you do not know.\n"
         "Score each answer 0-10 and give a brief rationale. Do not assign ranks; the system will rank later.\n"
-        "Example JSON: {\"scores\": [{\"id\": \"resp_1\", \"score\": 8.0, \"rationale\": \"...\"}]}\n"
+        "Example JSON: {{\"scores\": [{{\"id\": \"resp_1\", \"score\": 8.0, \"rationale\": \"...\"}}]}}\n"
         "Return JSON only with the provided schema."
     )
     user = f"Question:\n{question}\n\nPrompt Instructions:\n{prompt_text}\n\nAnswers:\n{examples}"
