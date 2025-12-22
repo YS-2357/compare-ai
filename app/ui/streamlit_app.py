@@ -754,6 +754,10 @@ def _send_prompt_eval(
                 per_model: dict[str, list[dict[str, Any]]] = {}
                 for ev in evaluations:
                     evaluator = ev.get("evaluator")
+                    status = ev.get("status") or {}
+                    evaluator_model = ""
+                    if isinstance(status, dict):
+                        evaluator_model = status.get("model") or ""
                     for sc in ev.get("scores", []):
                         target = sc.get("model")
                         if not target:
@@ -761,6 +765,7 @@ def _send_prompt_eval(
                         per_model.setdefault(target, []).append(
                             {
                                 "evaluator": evaluator,
+                                "evaluator_model": evaluator_model,
                                 "accuracy": sc.get("accuracy"),
                                 "completeness": sc.get("completeness"),
                                 "clarity": sc.get("clarity"),
@@ -814,6 +819,7 @@ def _send_prompt_eval(
                             rationale_rows.append(
                                 {
                                     "평가자": item.get("evaluator"),
+                                    "평가 모델": item.get("evaluator_model"),
                                     "정확성": (
                                         f"{item.get('accuracy'):.2f}"
                                         if isinstance(item.get("accuracy"), (int, float))
