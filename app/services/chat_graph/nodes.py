@@ -8,6 +8,7 @@ import os
 import re
 from typing import Annotated, Any, Callable, TypedDict
 
+from langchain_core.messages import BaseMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langgraph.graph.message import add_messages
 from langgraph.types import Send
@@ -205,6 +206,9 @@ def build_chat_prompt_input(state: GraphState, label: str) -> str:
         if isinstance(msg, dict) and msg.get("role") == "user":
             del history_user_messages[idx]
             break
+        if isinstance(msg, BaseMessage) and getattr(msg, "type", None) in ("human", "user"):
+            del history_user_messages[idx]
+            break
     history_state = dict(state)
     history_state["user_messages"] = history_user_messages
     history_text = render_chat_history(history_state, label, max_messages=MAX_CONTEXT_MESSAGES)
@@ -217,6 +221,19 @@ def build_chat_prompt_input(state: GraphState, label: str) -> str:
             break
         if isinstance(message, dict) and message.get("role") == "user":
             current_question = str(message.get("content", ""))
+            break
+        if isinstance(message, BaseMessage) and getattr(message, "type", None) in ("human", "user"):
+            content = message.content
+            if isinstance(content, list):
+                parts = []
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        parts.append(str(item.get("text") or ""))
+                    else:
+                        parts.append(str(item))
+                current_question = " ".join([p for p in parts if p])
+            else:
+                current_question = str(content)
             break
     if history_text.strip():
         prompt_text = (
