@@ -1,4 +1,4 @@
-﻿# 문서 개요 (업데이트: 2025-12-20, 서비스 리네임 및 가이드 추가 반영)
+﻿# 문서 개요 (업데이트: 2025-12-22, 모델 오버라이드/공통 모듈 반영)
 
 | 구분 | 설명 | 링크 |
 | --- | --- | --- |
@@ -8,5 +8,5 @@
 | Guides | 규칙/가이드 | [guides/naming-guidelines.md](guides/naming-guidelines.md), [guides/logger-guidelines.md](guides/logger-guidelines.md), [guides/config-guidelines.md](guides/config-guidelines.md) |
 
 ## Quick Links
-- 최신 changelog: [2025-12-20](changelog/2025-12-20.md)
-- 최신 dev log: [2025-12-20](development/2025-12-20.md)
+- 최신 changelog: [2025-12-22](changelog/2025-12-22.md)
+- 최신 dev log: [2025-12-22](development/2025-12-22.md)

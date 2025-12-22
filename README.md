@@ -1,7 +1,7 @@
 # Compare-AI (FastAPI + Streamlit 단일 레포)
 
 FastAPI 백엔드와 Streamlit UI가 한 레포(`compare-ai`)에 함께 있으며, 단일 커맨드로 로컬 실행합니다.  
-> **최종 업데이트: 2025-12-20** — 프롬프트 평가 스트리밍/병렬화, 서비스 구조 리네임(`chat_graph`), 모델 목록/가이드 최신화, Streamlit 평가 테이블 렌더링 개선(width API/Arrow 오류 대응)
+> **최종 업데이트: 2025-12-22** — DeepSeek 추가, 모델 오버라이드/공통 모듈 정리, 프롬프트 평가 개선, 로그/히스토리 분기 보강
 
 ## 📋 프로젝트 개요
 
@@ -44,6 +44,11 @@ GOOGLE_API_KEY=your-google-key
 ANTHROPIC_API_KEY=your-anthropic-key
 UPSTAGE_API_KEY=your-upstage-key
 PPLX_API_KEY=your-perplexity-key
+CO_API_KEY=your-cohere-key
+GROQ_API_KEY=your-groq-key
+MISTRAL_API_KEY=your-mistral-key
+DEEPSEEK_API_KEY=your-deepseek-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
 LANGSMITH_API_KEY=your-langsmith-key
 LANGSMITH_TRACING=true
 LANGSMITH_PROJECT=yout-project-name
@@ -100,6 +105,8 @@ compare-ai/
 │   ├── auth/                      # Supabase 검증/클라이언트
 │   ├── rate_limit/                # Upstash 클라이언트/Depends
 │   ├── services/chat_graph/        # LangGraph 워크플로우 분할
+│   ├── services/prompt_eval/       # 프롬프트 평가 스트리밍
+│   ├── services/shared/            # 공통 LLM 레지스트리/에러/모델 매핑
 │   └── ui/                        # Streamlit UI
 ├── scripts/run_app.py             # FastAPI+Streamlit 실행 스크립트 (main.py에서 호출)
 ├── main.py                        # APP_MODE에 따라 api만 또는 둘 다 실행
@@ -114,14 +121,18 @@ compare-ai/
 ## 🔧 주요 기능
 
 ### 1. 멀티 LLM 병렬 호출
-- OpenAI GPT-4o-mini
+- OpenAI GPT-4.1-mini
 - Google Gemini 2.5 Flash Lite
 - Anthropic Claude Haiku 4.5
 - Upstage Solar Mini
 - Perplexity Sonar
+- Mistral Small
+- Groq Llama 3.3 70B
+- Cohere Command R7B
+- DeepSeek Chat
 
 ### 2. LangGraph 워크플로우
-- 질문 초기화 → 5개 LLM 병렬 호출 → 응답 수집 및 요약
+- 질문 초기화 → 다중 LLM 병렬 호출 → 응답 수집 및 요약
 - 각 LLM의 성공/실패 상태 추적
 - 에러 발생 시에도 다른 모델의 응답은 정상 수집
 
@@ -156,8 +167,8 @@ Content-Type: application/json
 {
   "question": "당신의 질문을 입력하세요",
   "models": {
-    "openai": "gpt-4o-mini",
-    "gemini": "gemini-2.0-flash"
+    "openai": "gpt-4.1-mini",
+    "gemini": "gemini-2.5-flash-lite"
   }
 }
 ```
