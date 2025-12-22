@@ -22,7 +22,7 @@ def preview_text(text: str, limit: int = 80) -> str:
 
     logger.debug("preview_text:시작 len=%d limit=%d", len(text or ""), limit)
     compact = " ".join(text.split())
-    result = compact[:limit] + ("…" if len(compact) > limit else "")
+    result = compact
     logger.debug("preview_text:종료 result_len=%d", len(result))
     return result
 
