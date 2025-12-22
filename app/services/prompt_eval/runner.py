@@ -52,6 +52,44 @@ class ScoreList(BaseModel):
     scores: list[Score]
 
 
+def _extract_sources(raw_response: Any) -> list[str]:
+    """응답 메타에서 출처 URL을 최대한 추출한다."""
+
+    sources: list[str] = []
+
+    def _maybe_add(value: Any) -> None:
+        if isinstance(value, str) and value.startswith("http"):
+            sources.append(value)
+        if isinstance(value, dict):
+            for key in ("url", "source", "link", "href"):
+                candidate = value.get(key)
+                if isinstance(candidate, str) and candidate.startswith("http"):
+                    sources.append(candidate)
+
+    meta = getattr(raw_response, "response_metadata", None)
+    if isinstance(meta, dict):
+        for key in ("citations", "sources", "search_results"):
+            items = meta.get(key)
+            if isinstance(items, list):
+                for item in items:
+                    _maybe_add(item)
+
+    raw_sources = getattr(raw_response, "citations", None) or getattr(raw_response, "sources", None)
+    if isinstance(raw_sources, list):
+        for item in raw_sources:
+            _maybe_add(item)
+
+    # 중복 제거 (순서 유지)
+    seen = set()
+    unique_sources = []
+    for src in sources:
+        if src in seen:
+            continue
+        seen.add(src)
+        unique_sources.append(src)
+    return unique_sources
+
+
 def _llm_factory(label: str) -> Any:
     """모델 라벨에 맞는 LLM 팩토리를 반환한다."""
 
@@ -148,6 +186,10 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
         response = await llm.ainvoke(prompt_text)
         status = build_status_from_response(response)
         content = getattr(response, "content", None) or str(response)
+        logger.debug("_call_single_model:raw_response label=%s raw=%s", label, repr(response))
+        sources = _extract_sources(response)
+        if sources:
+            content = f"{content}\n\n[Sources]\n" + "\n".join(f"- {src}" for src in sources)
         elapsed_ms = int((time.perf_counter() - start) * 1000)
         logger.info("%s 호출 성공 (elapsed_ms=%s)", label, elapsed_ms)
         logger.debug("_call_single_model:raw_response label=%s body=%s", label, str(content))
@@ -156,7 +198,7 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
             "answer": content,
             "status": status,
             "elapsed_ms": elapsed_ms,
-            "source": None,
+            "source": sources[0] if sources else None,
             "error": False,
         }
     except Exception as exc:
@@ -173,8 +215,6 @@ async def _call_single_model(label: str, prompt_text: str) -> dict[str, Any]:
             "source": None,
             "error": True,
         }
-    finally:
-        logger.debug("_call_single_model:종료 label=%s", label)
 
 
 def _build_eval_prompt(
@@ -185,7 +225,6 @@ def _build_eval_prompt(
 ) -> ChatPromptTemplate:
     """블라인드 평가 프롬프트를 생성한다."""
 
-    logger.debug("_build_eval_prompt:시작 answers=%d", len(anonymized))
     logger.debug("_build_eval_prompt:question preview=%s reference=%s", question[:200], bool(reference))
     examples = "\n".join([f"ID {anon_id}:\n{content}\n" for anon_id, content in anonymized])
     rubric_line = (
@@ -214,7 +253,6 @@ def _build_eval_prompt(
             ("user", user),
         ]
     )
-    logger.debug("_build_eval_prompt:종료")
     return template
 
 
@@ -233,7 +271,6 @@ async def _evaluate_answers(
     id_to_model = {f"resp_{i+1}": r["model"] for i, r in enumerate(results)}
 
     prompt = _build_eval_prompt(question, prompt_text, anonymized, reference)
-    logger.debug("_evaluate_answers:prompt_preview=%s", str(prompt)[:300])
     parser = PydanticOutputParser(pydantic_object=ScoreList)
     start_eval = time.perf_counter()
     try:
@@ -259,6 +296,7 @@ async def _evaluate_answers(
     chain = prompt | eval_llm
     try:
         response = await chain.ainvoke({})
+        logger.debug("_evaluate_answers:raw_response evaluator=%s raw=%s", evaluator_label, repr(response))
         raw = response.content if hasattr(response, "content") else response
         if isinstance(raw, list):
             # LangChain 일부 드라이버가 list[{"type":"text","text":...}] 형식으로 반환 가능
@@ -329,8 +367,6 @@ async def _evaluate_answers(
             "status": {"status": "error", "detail": str(exc), "model": eval_model_name},
             "elapsed_ms": elapsed_ms,
         }
-    finally:
-        logger.debug("_evaluate_answers:종료 evaluator=%s", evaluator_label)
 
 
 def _build_score_table(scores: list[dict[str, Any]]) -> str:
