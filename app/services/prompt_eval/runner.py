@@ -189,6 +189,7 @@ def _build_eval_prompt(question: str, anonymized: list[tuple[str, str]], referen
         "You are grading multiple anonymous answers to the same question.\n"
         "All answers are in Korean. Do NOT guess the original model/provider.\n"
         f"{rubric_line}\n"
+        "Never fabricate; answer only what is supported. If information is missing, state that you do not know.\n"
         "Score each answer 0-10 and give a brief rationale. Do not assign ranks; the system will rank later.\n"
         "Return JSON only with the provided schema."
     )
