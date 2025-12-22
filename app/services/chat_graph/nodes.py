@@ -218,14 +218,25 @@ def build_chat_prompt_input(state: GraphState, label: str) -> str:
         if isinstance(message, dict) and message.get("role") == "user":
             current_question = str(message.get("content", ""))
             break
-    prompt_text = (
-        "[Conversation History]\n"
-        f"{history_text}\n\n"
-        "[Current Question]\n"
-        f"{current_question}\n\n"
-        "If anything is ambiguous, prefer the most recent topic or flow. Respond only in Korean."
-    )
-    logger.debug("build_chat_prompt_input:종료 label=%s question_preview=%s", label, preview_text(current_question))
+    if history_text.strip():
+        prompt_text = (
+            "[Conversation History]\n"
+            f"{history_text}\n\n"
+            "[Current Question]\n"
+            f"{current_question}\n\n"
+            "If anything is ambiguous, prefer the most recent topic or flow. Respond only in Korean."
+        )
+        mode = "with_history"
+    else:
+        prompt_text = (
+            "[Current Question]\n"
+            f"{current_question}\n\n"
+            "This is the first turn; there is no prior conversation. "
+            "Do not mention or reference any previous conversation; ask for clarification only if needed. "
+            "Respond only in Korean."
+        )
+        mode = "first_turn"
+    logger.debug("build_chat_prompt_input:종료 label=%s mode=%s question_preview=%s", label, mode, preview_text(current_question))
     return prompt_text
 
 
@@ -369,6 +380,28 @@ def _extract_response_meta(response: Any) -> dict[str, Any]:
     return meta
 
 
+def _parse_answer_json(raw_text: str) -> Answer | None:
+    """원문에서 JSON 블록을 찾아 Answer로 파싱한다."""
+
+    if not raw_text:
+        return None
+    candidates = []
+    if raw_text.strip().startswith("{") and raw_text.strip().endswith("}"):
+        candidates.append(raw_text.strip())
+    candidates.extend(re.findall(r"\{.*\}", raw_text, flags=re.DOTALL))
+    for candidate in reversed(candidates):
+        try:
+            parsed = json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(parsed, dict) and ("content" in parsed or "source" in parsed):
+            try:
+                return Answer(**parsed)
+            except Exception:
+                continue
+    return None
+
+
 async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, str | None, dict[str, Any], dict[str, Any]]:
     """LLM을 한 번 호출한 뒤 파서를 적용하고, 실패하면 원문을 그대로 사용한다."""
 
@@ -393,11 +426,21 @@ async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, s
             source = sources_list[0]
         logger.info("invoke_parsed:파싱 성공 label=%s status=%s source=%s", label, status.get("status"), source)
     except Exception:
-        content = raw_text
-        source = _extract_source(getattr(response, "response_metadata", None))
-        if not source and isinstance(sources_list, list) and sources_list:
-            source = sources_list[0]
-        logger.warning("invoke_parsed:파싱 실패 label=%s 원문사용", label)
+        fallback = _parse_answer_json(raw_text)
+        if fallback:
+            content = fallback.content or raw_text
+            source = fallback.source
+            if not source:
+                source = _extract_source(getattr(response, "response_metadata", None))
+            if not source and isinstance(sources_list, list) and sources_list:
+                source = sources_list[0]
+            logger.info("invoke_parsed:JSON 추출 성공 label=%s", label)
+        else:
+            content = raw_text
+            source = _extract_source(getattr(response, "response_metadata", None))
+            if not source and isinstance(sources_list, list) and sources_list:
+                source = sources_list[0]
+            logger.warning("invoke_parsed:파싱 실패 label=%s 원문사용", label)
     logger.debug("invoke_parsed:종료 label=%s content_preview=%s", label, preview_text(content))
     return content, source, status, response_meta
 
