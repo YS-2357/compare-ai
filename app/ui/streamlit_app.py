@@ -131,7 +131,9 @@ def _log_model_default_if_changed(provider: str, model: str, source: str) -> Non
 
 
 def _ensure_model_selections() -> None:
-    logger.debug("_ensure_model_selections:시작")
+    if not st.session_state.get("_log_model_selections_once"):
+        logger.debug("_ensure_model_selections:시작")
+        st.session_state["_log_model_selections_once"] = True
     defaults = {key: _default_model(key) for key in MODEL_OPTIONS}
     selections = st.session_state.get("model_selections") or {}
     locked = st.session_state.get("model_selections_locked") or {}
@@ -143,11 +145,15 @@ def _ensure_model_selections() -> None:
             merged[key] = default
     st.session_state["model_selections"] = merged
     st.session_state["model_selections_locked"] = locked
-    logger.debug("_ensure_model_selections:종료 selections=%s", merged)
+    if not st.session_state.get("_log_model_selections_done"):
+        logger.debug("_ensure_model_selections:종료 selections=%s", merged)
+        st.session_state["_log_model_selections_done"] = True
 
 
 def _render_model_selector() -> None:
-    logger.debug("_render_model_selector:시작 model_options=%s", list(MODEL_OPTIONS.keys()))
+    if not st.session_state.get("_log_model_selector_once"):
+        logger.debug("_render_model_selector:시작 model_options=%s", list(MODEL_OPTIONS.keys()))
+        st.session_state["_log_model_selector_once"] = True
     _ensure_model_selections()
     st.subheader("모델 선택")
     for key, meta in MODEL_OPTIONS.items():
@@ -165,11 +171,15 @@ def _render_model_selector() -> None:
         if selection != current:
             st.session_state.setdefault("model_selections_locked", {})[key] = True
         st.session_state["model_selections"][key] = selection
-    logger.debug("_render_model_selector:종료 selections=%s", st.session_state.get("model_selections"))
+    if not st.session_state.get("_log_model_selector_done"):
+        logger.debug("_render_model_selector:종료 selections=%s", st.session_state.get("model_selections"))
+        st.session_state["_log_model_selector_done"] = True
 
 
 def _load_base_url() -> str:
-    logger.debug("_load_base_url:시작")
+    if not st.session_state.get("_log_load_base_url_once"):
+        logger.debug("_load_base_url:시작")
+        st.session_state["_log_load_base_url_once"] = True
     saved = (
         st.session_state.get("fastapi_base_url")
         or DEFAULT_FASTAPI_BASE
@@ -180,7 +190,10 @@ def _load_base_url() -> str:
         base = saved.rsplit("/api/ask", 1)[0]
     else:
         base = saved
-    logger.debug("_load_base_url:종료 base=%s", base)
+    last = st.session_state.get("_log_load_base_url_value")
+    if last != base:
+        logger.debug("_load_base_url:종료 base=%s", base)
+        st.session_state["_log_load_base_url_value"] = base
     return base
 
 
@@ -386,7 +399,9 @@ def _render_sources_from_meta(meta: dict[str, Any] | None) -> bool:
 def _render_auth_section(base_url: str) -> None:
     """로그인/회원가입 UI를 렌더링한다."""
 
-    logger.debug("_render_auth_section:시작 base_url=%s", base_url)
+    if not st.session_state.get("_log_auth_section_once"):
+        logger.debug("_render_auth_section:시작 base_url=%s", base_url)
+        st.session_state["_log_auth_section_once"] = True
     st.header("로그인 또는 회원가입")
     email = st.text_input("이메일")
     password = st.text_input("비밀번호", type="password")
@@ -434,7 +449,9 @@ def _render_auth_section(base_url: str) -> None:
                 except Exception as exc:
                     logger.error("_render_auth_section:로그인 실패 email=%s err=%s", email, exc)
                     st.error(f"로그인 실패: {exc}")
-    logger.debug("_render_auth_section:종료")
+    if not st.session_state.get("_log_auth_section_done"):
+        logger.debug("_render_auth_section:종료")
+        st.session_state["_log_auth_section_done"] = True
     st.stop()
 
 
@@ -510,7 +527,9 @@ def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
 def _render_connection_status(base_url: str) -> None:
     """API 연결 상태를 간단히 표시한다."""
 
-    logger.debug("_render_connection_status:시작 base_url=%s", base_url)
+    if not st.session_state.get("_log_connection_status_once"):
+        logger.debug("_render_connection_status:시작 base_url=%s", base_url)
+        st.session_state["_log_connection_status_once"] = True
     status_box = st.empty()
     if not base_url:
         status_box.warning("FastAPI URL을 입력하세요.")
@@ -525,7 +544,9 @@ def _render_connection_status(base_url: str) -> None:
         except Exception as exc:  # pragma: no cover - UI 통신 예외
             status_box.error(f"❌ 연결 실패: {exc}")
             logger.error("_render_connection_status:실패 err=%s", exc)
-    logger.debug("_render_connection_status:종료")
+    if not st.session_state.get("_log_connection_status_done"):
+        logger.debug("_render_connection_status:종료")
+        st.session_state["_log_connection_status_done"] = True
 
 
 def _handle_logout() -> None:
