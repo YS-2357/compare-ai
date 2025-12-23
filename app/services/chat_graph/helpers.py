@@ -11,6 +11,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.utils.logger import get_logger
 from app.utils.config import get_settings
+from app.services.shared import load_prompt
 from .summaries import preview_text
 
 logger = get_logger(__name__)
@@ -59,12 +60,15 @@ def build_chat_prompt() -> ChatPromptTemplate:
     logger.debug("build_chat_prompt:시작")
     parser = PydanticOutputParser(pydantic_object=Answer)
     instructions = parser.get_format_instructions()
-    system = (
-        "You are a helpful multi-turn assistant. Use the conversation history to stay on topic; if there is none, treat the input as a new question. "
-        "Respond only in Korean, write clear and natural paragraphs, and provide enough detail to fully answer the question without being overly terse. "
-        "If additional context is needed, briefly note the limitation. "
-        "{format_instructions}"
-    )
+    settings = get_settings()
+    version = settings.prompt_chat_graph_version
+    system_template = load_prompt("chat_graph_system", version)
+    try:
+        system = system_template.format(format_instructions=instructions)
+    except Exception as exc:
+        logger.warning("build_chat_prompt:템플릿 포맷 실패 err=%s", exc)
+        system = system_template + "\n" + instructions
+    logger.info("chat_graph_prompt_version=%s", version)
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system),

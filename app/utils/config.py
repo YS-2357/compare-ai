@@ -48,6 +48,9 @@ class Settings:
     model_cohere: str = "command-r7b-12-2024"
     model_deepseek: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com/v1"
+    prompt_root: str = "docs/prompt"
+    prompt_chat_graph_version: str = "1.0.0"
+    prompt_eval_version: str = "1.0.0"
     supabase_jwks_cache_ttl: int = 300
     supabase_http_timeout: float = 5.0
     upstash_http_timeout: float = 5.0
@@ -88,6 +91,9 @@ class Settings:
             model_cohere=os.getenv("MODEL_COHERE", "command-r7b-12-2024"),
             model_deepseek=os.getenv("MODEL_DEEPSEEK", "deepseek-chat"),
             deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
+            prompt_root=os.getenv("PROMPT_ROOT", "docs/prompt"),
+            prompt_chat_graph_version=os.getenv("PROMPT_CHAT_GRAPH_VERSION", "1.0.0"),
+            prompt_eval_version=os.getenv("PROMPT_EVAL_VERSION", "1.0.0"),
             supabase_jwks_cache_ttl=int(os.getenv("SUPABASE_JWKS_CACHE_TTL", "300")),
             supabase_http_timeout=float(os.getenv("SUPABASE_HTTP_TIMEOUT", "5")),
             upstash_http_timeout=float(os.getenv("UPSTASH_HTTP_TIMEOUT", "5")),

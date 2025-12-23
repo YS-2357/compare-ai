@@ -13,6 +13,7 @@ from .llm_registry import (
     create_uuid,
 )
 from .errors import build_status_from_error, build_status_from_response
+from .prompts import load_prompt
 
 __all__ = [
     "MODEL_ALIASES",
@@ -28,4 +29,5 @@ __all__ = [
     "create_uuid",
     "build_status_from_error",
     "build_status_from_response",
+    "load_prompt",
 ]

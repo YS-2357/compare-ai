@@ -29,7 +29,7 @@ from app.services.shared.llm_registry import (
     ChatPerplexity,
     ChatUpstage,
 )
-from app.services.shared import LATEST_EVAL_MODELS, MODEL_ALIASES
+from app.services.shared import LATEST_EVAL_MODELS, MODEL_ALIASES, load_prompt
 
 logger = get_logger(__name__)
 settings_cache = get_settings()
@@ -340,24 +340,28 @@ def _build_eval_prompt(
         if reference
         else "Grade by accuracy, completeness, and clarity; do not penalize stylistic differences."
     )
-    system = (
-        "You are grading multiple anonymous answers to the same question.\n"
-        "All answers are in Korean. Do NOT guess the original model/provider.\n"
-        f"{rubric_line}\n"
-        "Never fabricate; answer only what is supported. If information is missing, state that you do not know.\n"
-        "Score each answer on accuracy, completeness, and clarity (0-10 each). Do not assign ranks; the system will rank later.\n"
-        "Example JSON: {{\"scores\": [{{\"id\": \"resp_1\", \"accuracy\": 8.5, \"completeness\": 7.0, \"clarity\": 9.0, \"rationale\": \"...\"}}]}}\n"
-        "Return JSON only with the provided schema."
-    )
-    user = f"Question:\n{question}\n\nPrompt Instructions:\n{prompt_text}\n\nAnswers:\n{examples}"
-    if reference:
-        user += f"\n\n[Reference Answer]\n{reference}"
+    settings = get_settings()
+    version = settings.prompt_eval_version
+    system_template = load_prompt("prompt_eval_system", version)
+    user_template = load_prompt("prompt_eval_user", version)
+    reference_block = f"\n\n[Reference Answer]\n{reference}" if reference else ""
     parser = PydanticOutputParser(pydantic_object=ScoreList)
     instructions_raw = parser.get_format_instructions()
     instructions = instructions_raw.replace("{", "{{").replace("}", "}}")
+    system = system_template.format(
+        rubric_line=rubric_line,
+        format_instructions=instructions,
+    )
+    user = user_template.format(
+        question=question,
+        prompt_text=prompt_text,
+        answers=examples,
+        reference_block=reference_block,
+    )
+    logger.info("prompt_eval_version=%s", version)
     template = ChatPromptTemplate.from_messages(
         [
-            ("system", system + "\n" + instructions),
+            ("system", system),
             ("user", user),
         ]
     )
