@@ -348,7 +348,10 @@ def _build_eval_prompt(
     parser = PydanticOutputParser(pydantic_object=ScoreList)
     instructions_raw = parser.get_format_instructions()
     instructions = instructions_raw.replace("{", "{{").replace("}", "}}")
-    system = system_template.format(
+    safe_system_template = system_template.replace("{", "{{").replace("}", "}}")
+    safe_system_template = safe_system_template.replace("{{rubric_line}}", "{rubric_line}")
+    safe_system_template = safe_system_template.replace("{{format_instructions}}", "{format_instructions}")
+    system = safe_system_template.format(
         rubric_line=rubric_line,
         format_instructions=instructions,
     )
