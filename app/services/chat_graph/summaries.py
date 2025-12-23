@@ -20,10 +20,8 @@ SUMMARY_PARSER = StrOutputParser()
 def preview_text(text: str, limit: int = 80) -> str:
     """긴 문자열을 로그에 표시하기 위한 요약 버전으로 변환한다."""
 
-    logger.debug("preview_text:시작 len=%d limit=%d", len(text or ""), limit)
     compact = " ".join(text.split())
     result = compact
-    logger.debug("preview_text:종료 result_len=%d", len(result))
     return result
 
 

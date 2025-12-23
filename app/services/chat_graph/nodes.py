@@ -39,21 +39,17 @@ MAX_CONTEXT_MESSAGES = settings_cache.max_context_messages  # 최근 메시지 �
 def merge_dicts(existing: dict | None, new: dict | None) -> dict:
     """LangGraph 상태 병합 시 딕셔너리를 병합한다."""
 
-    logger.debug("merge_dicts:시작 existing=%s new=%s", bool(existing), bool(new))
     merged: dict = dict(existing or {})
     merged.update(new or {})
-    logger.debug("merge_dicts:종료 size=%d", len(merged))
     return merged
 
 
 def merge_model_messages(existing: dict | None, new: dict | None) -> dict:
     """모델별 메시지 딕셔너리를 병합한다."""
 
-    logger.debug("merge_model_messages:시작 existing=%d new=%d", len(existing or {}), len(new or {}))
     merged: dict[str, list] = dict(existing or {})
     for model, messages in (new or {}).items():
         merged[model] = add_messages(merged.get(model, []), messages or [])
-    logger.debug("merge_model_messages:종료 models=%d", len(merged))
     return merged
 
 
