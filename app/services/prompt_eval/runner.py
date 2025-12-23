@@ -160,7 +160,6 @@ def _extract_response_meta(response: Any) -> dict[str, Any]:
 def _llm_factory(label: str, model_name: str | None = None) -> Any:
     """모델 라벨에 맞는 LLM 팩토리를 반환한다."""
 
-    logger.debug("_llm_factory:시작 label=%s", label)
     sc = settings_cache
     factories = {
         "OpenAI": lambda: ChatOpenAI(model=model_name or sc.model_openai),
@@ -176,7 +175,6 @@ def _llm_factory(label: str, model_name: str | None = None) -> Any:
     if label not in factories:
         raise ValueError(f"지원하지 않는 모델 라벨: {label}")
     llm = factories[label]()
-    logger.debug("_llm_factory:종료 label=%s", label)
     return llm
 
 
@@ -267,11 +265,9 @@ LABEL_TO_KEY = {
 def _build_model_prompt(question: str, prompt: str | None) -> str:
     """모든 모델에 동일하게 적용할 프롬프트를 생성한다."""
 
-    logger.debug("_build_model_prompt:시작")
     base = prompt or DEFAULT_PROMPT
     try:
         result = base.format(question=question)
-        logger.debug("_build_model_prompt:종료 format 성공")
         return result
     except Exception:
         # 포맷 실패 시 안전하게 합치기
