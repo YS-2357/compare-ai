@@ -80,7 +80,6 @@ st.set_page_config(page_title="Compare-AI", page_icon="🤖", layout="wide")
 
 
 def _default_model(provider: str) -> str:
-    logger.debug("_default_model:시작 provider=%s", provider)
     meta = MODEL_OPTIONS[provider]
     env_value = os.getenv(meta["env"])
     if env_value:

@@ -1,4 +1,4 @@
-﻿# 문서 개요 (업데이트: 2025-12-22, 모델 오버라이드/공통 모듈 반영)
+﻿# 문서 개요 (업데이트: 2025-12-24, 로그 품질 개선 반영)
 
 | 구분 | 설명 | 링크 |
 | --- | --- | --- |
@@ -9,5 +9,5 @@
 | Prompts | 프롬프트 원본 | [prompt/_README.md](prompt/_README.md) |
 
 ## Quick Links
-- 최신 changelog: [2025-12-22](changelog/2025-12-22.md)
-- 최신 dev log: [2025-12-22](development/2025-12-22.md)
+- 최신 changelog: [2025-12-24](changelog/2025-12-24.md)
+- 최신 dev log: [2025-12-24](development/2025-12-24.md)
