@@ -211,3 +211,6 @@ __marimo__/
 
 # Claude
 .claude
+
+# Local skills guide (AI helper)
+SKILLS.md
