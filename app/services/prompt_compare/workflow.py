@@ -14,10 +14,10 @@ from typing import Any, AsyncIterator
 from app.utils.logger import get_logger
 from app.services.shared.errors import build_status_from_error, build_status_from_response
 from app.services.shared import MODEL_ALIASES
-from .aggregate import aggregate_scores
-from .eval import evaluate_answers
+from .aggregator import aggregate_scores
+from .evaluator import evaluate_answers
 from .extractors import append_sources_block, extract_response_meta, extract_sources
-from .llm import LABEL_TO_KEY, build_model_prompt, llm_factory
+from .clients import LABEL_TO_KEY, build_model_prompt, llm_factory
 
 logger = get_logger(__name__)
 
@@ -57,8 +57,8 @@ async def _call_single_model(label: str, prompt_text: str, model_name: str | Non
         logger.debug("_call_single_model:예외 raw_response label=%s status=%s", label, status)
         return {
             "model": label,
-        "answer": message,
-        "answer_with_sources": message,
+            "answer": message,
+            "answer_with_sources": message,
             "status": status,
             "elapsed_ms": elapsed_ms,
             "source": None,
@@ -98,7 +98,7 @@ async def stream_prompt_eval(
             canonical = MODEL_ALIASES.get(m, m)
             if canonical not in models:
                 models.append(canonical)
-        logger.info("PromptEval 실행: models=%s", ", ".join(models))
+        logger.info("PromptCompare 실행: models=%s", ", ".join(models))
 
         prompt_text = build_model_prompt(question, prompt)
         overrides = model_overrides or {}
@@ -195,8 +195,8 @@ async def stream_prompt_eval(
             },
         }
     except Exception as exc:
-        logger.error("PromptEval 전체 실패: %s", exc)
-        yield {"type": "error", "message": str(exc), "model": None, "node": "prompt_eval"}
+        logger.error("PromptCompare 전체 실패: %s", exc)
+        yield {"type": "error", "message": str(exc), "model": None, "node": "prompt_compare"}
     finally:
         logger.debug("stream_prompt_eval:종료 question=%s", question[:50] if question else "")
 

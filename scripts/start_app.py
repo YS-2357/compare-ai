@@ -74,7 +74,7 @@ def _run_streamlit(port: int, env: dict[str, str]) -> None:
 def main() -> None:
     """FastAPI(Uvicorn)와 Streamlit(로컬용)을 부트스트랩한다."""
 
-    logger.debug("run_app main:시작")
+    logger.debug("start_app main:시작")
     settings = get_settings()
     host = os.getenv("FASTAPI_HOST", settings.fastapi_host)
     fastapi_port = int(os.getenv("PORT") or settings.fastapi_port)
@@ -110,7 +110,7 @@ def main() -> None:
     except KeyboardInterrupt:
         logger.warning("사용자 중단 감지, Streamlit 종료")
     finally:
-        logger.debug("run_app main:종료")
+        logger.debug("start_app main:종료")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 """로컬 실행 엔트리포인트.
 
-- 기본: FastAPI + Streamlit(run_app) 동시 실행
+- 기본: FastAPI + Streamlit(start_app) 동시 실행
 - 환경변수 `APP_MODE=api`일 때는 FastAPI만 단독 실행
 """
 
@@ -12,7 +12,7 @@ import uvicorn
 
 from app.utils.config import get_settings
 from app.main import app as fastapi_app
-from scripts.run_app import main as run_main
+from scripts.start_app import main as run_main
 
 
 def main() -> None:

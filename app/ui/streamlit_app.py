@@ -985,7 +985,7 @@ def main() -> None:
     with tab_compare:
         st.header("대화")
         _render_chat_history(st.session_state["chat_log"])
-        show_chat_graph = st.toggle("그래프 보기 (Chat Graph)", value=False)
+        show_chat_graph = st.toggle("그래프 보기 (Chat Compare)", value=False)
 
         question = st.chat_input("질문을 입력하세요...")
 
@@ -1006,7 +1006,7 @@ def main() -> None:
                 except Exception as exc:  # pragma: no cover - UI 예외
                     st.error(f"요청 실패: {exc}")
         if show_chat_graph:
-            st.subheader("Chat Graph")
+            st.subheader("Chat Compare")
             chat_dot = """
             digraph G {
               rankdir=LR;
@@ -1048,7 +1048,7 @@ def main() -> None:
     with tab_prompt:
         st.header("프롬프트 평가")
         st.write("모델별 프롬프트를 다르게 적용해 응답을 받고, 고정 평가모델로 블라인드 평가합니다.")
-        show_eval_graph = st.toggle("그래프 보기 (Prompt Eval Graph)", value=False)
+        show_eval_graph = st.toggle("그래프 보기 (Prompt Compare)", value=False)
         if not eval_url:
             st.error("FastAPI Base URL을 설정해주세요.")
             return
@@ -1083,16 +1083,24 @@ def main() -> None:
             height=120,
         )
 
-        if st.button("프롬프트 평가 실행", disabled=not question_eval or not active_models):
+        prompt_payload = prompt_val.strip()
+        prompt_missing_question = bool(prompt_payload) and "{question}" not in prompt_payload
+        if prompt_missing_question:
+            st.warning("프롬프트에는 `{question}` 변수가 반드시 포함되어야 합니다.")
+
+        if st.button(
+            "프롬프트 평가 실행",
+            disabled=not question_eval or not active_models or prompt_missing_question,
+        ):
             with st.spinner("프롬프트 평가 실행 중..."):
                 try:
                     active_labels = [MODEL_OPTIONS[k]["label"] for k in active_models if k in MODEL_OPTIONS]
-                    prompt_payload = prompt_val.strip() or None
+                    prompt_payload = prompt_payload or None
                     _send_prompt_eval(question_eval, eval_url, headers, prompt_payload, active_labels)
                 except Exception as exc:  # pragma: no cover
                     st.error(f"요청 실패: {exc}")
         if show_eval_graph:
-            st.subheader("Prompt Eval Graph")
+            st.subheader("Prompt Compare")
             eval_dot = """
             digraph G {
               rankdir=LR;

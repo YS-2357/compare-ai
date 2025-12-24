@@ -49,8 +49,8 @@ class Settings:
     model_deepseek: str = "deepseek-chat"
     deepseek_base_url: str = "https://api.deepseek.com/v1"
     prompt_root: str = "docs/prompt"
-    prompt_chat_graph_version: str = "1.0.0"
-    prompt_eval_version: str = "1.0.0"
+    prompt_chat_compare_version: str = "1.0.0"
+    prompt_compare_version: str = "1.0.0"
     supabase_jwks_cache_ttl: int = 300
     supabase_http_timeout: float = 5.0
     upstash_http_timeout: float = 5.0
@@ -92,8 +92,8 @@ class Settings:
             model_deepseek=os.getenv("MODEL_DEEPSEEK", "deepseek-chat"),
             deepseek_base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
             prompt_root="docs/prompt",
-            prompt_chat_graph_version="1.0.0",
-            prompt_eval_version="1.0.0",
+            prompt_chat_compare_version="1.0.0",
+            prompt_compare_version="1.0.0",
             supabase_jwks_cache_ttl=int(os.getenv("SUPABASE_JWKS_CACHE_TTL", "300")),
             supabase_http_timeout=float(os.getenv("SUPABASE_HTTP_TIMEOUT", "5")),
             upstash_http_timeout=float(os.getenv("UPSTASH_HTTP_TIMEOUT", "5")),

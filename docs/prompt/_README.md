@@ -10,9 +10,9 @@
 ```
 
 예시:
-- `chat_graph_system@1.0.0.md`
-- `prompt_eval_system@1.0.0.md`
-- `prompt_eval_user@1.0.0.md`
+- `chat_compare_system@1.0.0.md`
+- `prompt_compare_system@1.0.0.md`
+- `prompt_compare_user@1.0.0.md`
 
 ## 버전 규칙
 
@@ -36,4 +36,4 @@ reason: 변경 이유
 ## 실행 로그
 
 실행 시 로그에 프롬프트 버전을 남긴다.  
-예: `prompt_eval_version=1.0.0`, `chat_graph_prompt_version=1.0.0`
+예: `prompt_compare_version=1.0.0`, `prompt_chat_compare_version=1.0.0`
