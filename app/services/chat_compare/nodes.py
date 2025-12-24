@@ -16,7 +16,7 @@ from langgraph.types import Send
 from app.utils.config import get_settings
 from app.utils.logger import get_logger
 from app.services.shared.errors import build_status_from_error, build_status_from_response
-from .helpers import Answer, build_chat_prompt, build_chat_prompt_input, message_to_text, render_chat_history
+from .prompts import Answer, build_chat_prompt, build_chat_prompt_input, message_to_text, render_chat_history
 
 from app.services.shared.llm_registry import (
     ChatAnthropic,
