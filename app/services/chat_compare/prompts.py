@@ -61,15 +61,15 @@ def build_chat_prompt() -> ChatPromptTemplate:
     parser = PydanticOutputParser(pydantic_object=Answer)
     instructions = parser.get_format_instructions()
     settings = get_settings()
-    version = settings.prompt_chat_graph_version
-    system_template = load_prompt("chat_graph_system", version)
+    version = settings.prompt_chat_compare_version
+    system_template = load_prompt("chat_compare_system", version)
     try:
         escaped = instructions.replace("{", "{{").replace("}", "}}")
         system = system_template.format(format_instructions=escaped)
     except Exception as exc:
         logger.warning("build_chat_prompt:템플릿 포맷 실패 err=%s", exc)
         system = system_template + "\n" + instructions
-    logger.info("chat_graph_prompt_version=%s", version)
+    logger.info("chat_compare_prompt_version=%s", version)
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", system),
