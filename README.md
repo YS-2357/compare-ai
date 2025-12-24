@@ -104,11 +104,11 @@ compare-ai/
 │   │   └── schemas/               # ask.py, auth.py
 │   ├── auth/                      # Supabase 검증/클라이언트
 │   ├── rate_limit/                # Upstash 클라이언트/Depends
-│   ├── services/chat_graph/        # LangGraph 워크플로우 분할
-│   ├── services/prompt_eval/       # 프롬프트 평가 스트리밍
+│   ├── services/chat_compare/      # LangGraph 워크플로우 분할
+│   ├── services/prompt_compare/    # 프롬프트 평가 스트리밍
 │   ├── services/shared/            # 공통 LLM 레지스트리/에러/모델 매핑
 │   └── ui/                        # Streamlit UI
-├── scripts/run_app.py             # FastAPI+Streamlit 실행 스크립트 (main.py에서 호출)
+├── scripts/start_app.py           # FastAPI+Streamlit 실행 스크립트 (main.py에서 호출)
 ├── main.py                        # APP_MODE에 따라 api만 또는 둘 다 실행
 ├── notebooks/
 │   └── api_langgraph_test.ipynb
