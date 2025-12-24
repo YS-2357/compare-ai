@@ -11,8 +11,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.utils.config import get_settings
 from app.utils.logger import get_logger
 from app.services.shared import load_prompt
-from .models import ScoreList
-from .llm import select_eval_llm
+from .schemas import ScoreList
+from .clients import select_eval_llm
 
 logger = get_logger(__name__)
 
@@ -33,9 +33,9 @@ def build_eval_prompt(
         else "Grade by accuracy, completeness, and clarity; do not penalize stylistic differences."
     )
     settings = get_settings()
-    version = settings.prompt_eval_version
-    system_template = load_prompt("prompt_eval_system", version)
-    user_template = load_prompt("prompt_eval_user", version)
+    version = settings.prompt_compare_version
+    system_template = load_prompt("prompt_compare_system", version)
+    user_template = load_prompt("prompt_compare_user", version)
     reference_block = f"\n\n[Reference Answer]\n{reference}" if reference else ""
     parser = PydanticOutputParser(pydantic_object=ScoreList)
     instructions_raw = parser.get_format_instructions()
@@ -53,7 +53,7 @@ def build_eval_prompt(
         answers=examples,
         reference_block=reference_block,
     )
-    logger.info("prompt_eval_version=%s", version)
+    logger.info("prompt_compare_version=%s", version)
     template = ChatPromptTemplate.from_messages(
         [
             ("system", system),
