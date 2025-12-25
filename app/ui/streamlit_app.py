@@ -257,14 +257,17 @@ def _ensure_model_selections() -> None:
     defaults = {key: _default_model(key) for key in MODEL_OPTIONS}
     selections = st.session_state.get("model_selections") or {}
     locked = st.session_state.get("model_selections_locked") or {}
+    enabled = st.session_state.get("model_enabled") or {}
     merged = {}
     for key, default in defaults.items():
         if locked.get(key):
             merged[key] = selections.get(key, default)
         else:
             merged[key] = default
+        enabled.setdefault(key, True)
     st.session_state["model_selections"] = merged
     st.session_state["model_selections_locked"] = locked
+    st.session_state["model_enabled"] = enabled
     if not st.session_state.get("_log_model_selections_done"):
         logger.debug("_ensure_model_selections:종료 selections=%s", merged)
         st.session_state["_log_model_selections_done"] = True
@@ -282,7 +285,14 @@ def _render_model_selector() -> None:
         if current not in options:
             options = [current] + options
         index = options.index(current) if current in options else 0
-        selection = st.selectbox(
+        col_toggle, col_select = st.columns([1, 3])
+        enabled = col_toggle.toggle(
+            "ON",
+            value=st.session_state["model_enabled"].get(key, True),
+            key=f"model_toggle_{key}",
+        )
+        st.session_state["model_enabled"][key] = enabled
+        selection = col_select.selectbox(
             f"{meta['label']} 모델",
             options,
             index=index,
@@ -689,6 +699,7 @@ def _send_question(
     turn_value: int,
     history_payload: list[dict[str, str]],
     model_overrides: dict[str, str] | None = None,
+    active_providers: list[str] | None = None,
 ) -> None:
     """질문을 전송하고 응답을 세션에 반영한다."""
 
@@ -696,6 +707,8 @@ def _send_question(
     payload: dict[str, Any] = {"question": question, "turn": turn_value, "history": history_payload}
     if model_overrides:
         payload["models"] = {k: v for k, v in model_overrides.items() if v}
+    if active_providers:
+        payload["active_providers"] = active_providers
     resp = requests.post(ask_url, headers=headers, json=payload, stream=True, timeout=60)
     _sync_usage_from_headers(resp)
 
@@ -1118,11 +1131,24 @@ def main() -> None:
                 headers["Authorization"] = token
             history_payload = _build_history_payload(st.session_state.get("chat_log", []))
             model_overrides = st.session_state.get("model_selections")
+            enabled_map = st.session_state.get("model_enabled") or {}
+            active_providers = [k for k, v in enabled_map.items() if v]
+            if not active_providers:
+                st.error("활성화된 모델이 없습니다. 사이드바에서 모델을 켜주세요.")
+                return
             turn_value = len(st.session_state.get("chat_log", [])) + 1
 
             with st.spinner("모델 비교 중..."):
                 try:
-                    _send_question(question, ask_url, headers, turn_value, history_payload, model_overrides=model_overrides)
+                    _send_question(
+                        question,
+                        ask_url,
+                        headers,
+                        turn_value,
+                        history_payload,
+                        model_overrides=model_overrides,
+                        active_providers=active_providers,
+                    )
                 except Exception as exc:  # pragma: no cover - UI 예외
                     st.error(f"요청 실패: {exc}")
         if show_chat_graph:
