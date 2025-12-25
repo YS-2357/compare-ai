@@ -178,7 +178,6 @@ MODEL_OPTIONS: dict[str, dict[str, Any]] = {
             "c4ai-aya-expanse-8b",
             "c4ai-aya-vision-32b",
             "c4ai-aya-vision-8b",
-            "command-a-reasoning-08-2025",
             "command-a-vision-07-2025",
             "command-r-08-2024",
             "command-r7b-12-2024",
