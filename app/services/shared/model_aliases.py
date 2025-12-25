@@ -1,7 +1,7 @@
 """모델 별칭 및 최신 모델 매핑."""
 
 LATEST_EVAL_MODELS: dict[str, str] = {
-    "OpenAI": "gpt-5-mini",
+    "OpenAI": "gpt-5.2-pro",
     "Gemini": "gemini-3-flash-preview",
     "Anthropic": "claude-sonnet-4-5-20250929",
     "Perplexity": "sonar",
