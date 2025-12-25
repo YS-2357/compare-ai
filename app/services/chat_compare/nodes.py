@@ -170,7 +170,7 @@ async def maybe_summarize_history(
             if msg_text:
                 text_lines.append(msg_text)
         history_text = "\n".join(text_lines)
-        summary = await _summarize_content(llm, history_text, label)
+        summary = await summarize_content(llm, history_text, label)
         summaries[label] = summary
         logger.info(
             "history/summarize label=%s turn=%s msgs_before=%d msgs_after=%d summary_len=%d preview=%s",
