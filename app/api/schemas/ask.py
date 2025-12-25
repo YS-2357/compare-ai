@@ -21,6 +21,11 @@ class AskRequest(BaseModel):
         description="공급자별 모델 덮어쓰기 (provider:model)",
         examples=[{"openai": "gpt-4.1-mini", "gemini": "gemini-2.5-flash-lite"}],
     )
+    active_providers: list[str] | None = Field(
+        None,
+        description="활성화된 공급자 목록 (예: [\"openai\", \"gemini\"]). 없으면 전체 사용.",
+        examples=[["openai", "gemini", "anthropic"]],
+    )
 
 
 __all__ = ["AskRequest"]
