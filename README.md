@@ -1,7 +1,7 @@
 # Compare-AI (FastAPI + Streamlit 단일 레포)
 
 FastAPI 백엔드와 Streamlit UI가 한 레포(`compare-ai`)에 함께 있으며, 단일 커맨드로 로컬 실행합니다.  
-> **최종 업데이트: 2025-12-22** — DeepSeek 추가, 모델 오버라이드/공통 모듈 정리, 프롬프트 평가 개선, 로그/히스토리 분기 보강
+> **최종 업데이트: 2025-12-25** — Cohere `command-a-reasoning-08-2025` 채팅 목록 제외, Swagger 문서 보강
 
 ## 📋 프로젝트 개요
 

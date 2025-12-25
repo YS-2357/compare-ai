@@ -1,6 +1,6 @@
 ﻿# app/api/
 
-> 최종 업데이트: 2025-12-22 · 프롬프트 평가 모델 오버라이드, 응답 메타/출처 분리, 히스토리/현재 질문 분리 문서화
+> 최종 업데이트: 2025-12-25 · Cohere `command-a-reasoning-08-2025` 채팅 목록 제외, Swagger 문서 보강
 > 추가: `/api/prompt-eval`에 `model_overrides`로 생성 모델을 지정, 평가 모델은 최신 고정 모델 사용
 
 - `routes.py`: `/health`, `/api/ask`, `/api/prompt-eval`, `/usage` 엔드포인트. 모델 덮어쓰기/관리자 우회 전달, 사용량 헤더 스트리밍, 프롬프트 평가 NDJSON 제공.

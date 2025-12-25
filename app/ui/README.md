@@ -1,6 +1,6 @@
 # app/ui/
 
-> 최종 업데이트: 2025-12-22 — 프롬프트 평가 모델 오버라이드 전달, 평가자 모델명 표시, 응답 메타/출처 표시 강화
+> 최종 업데이트: 2025-12-25 — Cohere `command-a-reasoning-08-2025` 채팅 목록 제외, Swagger 문서 보강
 
 - Streamlit 로컬/개발용 UI (별도 Render 서비스로도 사용 가능).
 - 로그인/회원가입 → 질문 → 스트림(partial/summary) 표시, 모델별 답변과 source 표시.

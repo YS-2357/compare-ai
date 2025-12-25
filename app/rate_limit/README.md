@@ -1,6 +1,6 @@
 ﻿# app/rate_limit/
 
-> 최종 업데이트: 2025-12-22 · 문서 최신화(구조 변경 없음)
+> 최종 업데이트: 2025-12-25 · Cohere `command-a-reasoning-08-2025` 채팅 목록 제외 반영
 
 - Upstash Redis 기반 일일 사용량 제한기.
 - `upstash.py`: HTTP 타임아웃 설정 및 종료 훅을 가진 비동기 클라이언트(INCR + EXPIRE).

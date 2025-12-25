@@ -1,6 +1,6 @@
 # app/
 
-> 최종 업데이트: 2025-12-22 — shared 모듈 분리, 프롬프트 평가 모델 오버라이드, DeepSeek 추가
+> 최종 업데이트: 2025-12-25 — Cohere 채팅 목록에서 `command-a-reasoning-08-2025` 제외, Swagger 문서 반영
 
 - FastAPI 애플리케이션 루트 패키지.
 - `utils/config.py`: 환경변수 로딩/Settings(DeepSeek 포함).

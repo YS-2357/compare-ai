@@ -1,6 +1,6 @@
 # app/services/
 
-> 최종 업데이트: 2025-12-22 — `shared` 공통 모듈 분리(llm_registry/errors), 프롬프트 평가 모델 오버라이드 적용
+> 최종 업데이트: 2025-12-25 — Cohere `command-a-reasoning-08-2025` 채팅 목록 제외, Swagger 문서 보강
 
 - 애플리케이션 서비스 계층 패키지. API 라우터와 분리된 도메인 로직을 모은다.
 - `chat_compare/`: 멀티 LLM 병렬 실행 그래프, 노드/프롬프트/요약 유틸 집합.

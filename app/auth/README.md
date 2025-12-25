@@ -1,6 +1,6 @@
 ﻿# app/auth
 
-> 최종 업데이트: 2025-12-22 · 문서 최신화(구조 변경 없음)
+> 최종 업데이트: 2025-12-25 · Cohere `command-a-reasoning-08-2025` 채팅 목록 제외 반영
 
 - Supabase JWT 검증 및 Auth REST 클라이언트 유틸.
 - `dependencies.py`: `get_current_user`가 Bearer JWT를 검증하고 `ADMIN_EMAIL` 사용자에 bypass 플래그 부여.

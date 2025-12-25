@@ -1,6 +1,6 @@
 # app/api/schemas/
 
-> 최종 업데이트: 2025-12-22 — `PromptEvalRequest`에 `model_overrides` 추가, 프롬프트 평가 모델 선택 확장
+> 최종 업데이트: 2025-12-25 — Cohere `command-a-reasoning-08-2025` 채팅 목록 제외, Swagger 문서 보강
 > 추가: `PromptEvalRequest`에 `reference_answer`(모범답변 예시) 필드가 포함되어 평가 프롬프트 분기에 사용됨
 
 - FastAPI 엔드포인트에서 사용하는 요청/응답 데이터 모델 모음.
