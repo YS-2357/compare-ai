@@ -105,6 +105,7 @@ async def stream_chat(
     max_turns: int | None = None,
     history: list[dict[str, str]] | None = None,
     model_overrides: dict[str, str] | None = None,
+    active_models: list[str] | None = None,
     bypass_turn_limit: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """질문을 받아 LangGraph 워크플로우에서 발생하는 이벤트를 스트리밍한다.
@@ -115,6 +116,7 @@ async def stream_chat(
         max_turns: 최대 허용 턴 수.
         history: 이전 대화 기록.
         model_overrides: 공급자별 모델명을 덮어쓰는 매핑.
+        active_models: 활성화된 모델 노드 목록(없으면 전체).
     """
 
     logger.debug("stream_chat:시작 turn=%s max_turns=%s", turn, max_turns)
@@ -133,7 +135,7 @@ async def stream_chat(
     base_question = question.strip()
     app = get_app()
     start_time = time.perf_counter()
-    active_models = list(NODE_CONFIG.keys())
+    active_models = active_models or list(NODE_CONFIG.keys())
     # 히스토리 → LangGraph 상태용 메시지로 변환
     user_messages = []
     model_messages: dict[str, list] = {}
@@ -154,7 +156,7 @@ async def stream_chat(
     state_inputs: GraphState = {
         "max_turns": resolved_max_turns,
         "turn": turn,
-        "active_models": active_models,
+        "active_models": [m for m in active_models if m in NODE_CONFIG],
         "user_messages": user_messages,
         "model_messages": model_messages,
         "model_summaries": {},
