@@ -415,6 +415,32 @@ def _parse_answer_json(raw_text: str) -> Answer | None:
     return None
 
 
+def _normalize_content_to_text(content: Any) -> str:
+    """LLM content를 문자열로 안전하게 변환한다."""
+
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(str(item.get("text") or ""))
+            elif hasattr(item, "text"):
+                parts.append(str(getattr(item, "text") or ""))
+            elif hasattr(item, "content"):
+                parts.append(str(getattr(item, "content") or ""))
+            else:
+                parts.append(str(item))
+        return " ".join([p for p in parts if p])
+    if hasattr(content, "text"):
+        return str(getattr(content, "text") or "")
+    if hasattr(content, "content"):
+        return str(getattr(content, "content") or "")
+    return str(content)
+
+
 async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, str | None, dict[str, Any], dict[str, Any]]:
     """LLM을 한 번 호출한 뒤 파서를 적용하고, 실패하면 원문을 그대로 사용한다."""
 
@@ -422,13 +448,15 @@ async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, s
     parser = PydanticOutputParser(pydantic_object=Answer)
     prompt = build_chat_prompt()
     chain = prompt | llm
-    response = await chain.ainvoke({"question": prompt_input})
+    try:
+        response = await chain.ainvoke({"question": prompt_input})
+    except Exception as exc:
+        logger.warning("invoke_parsed:체인 호출 실패 label=%s err=%s", label, exc)
+        response = await llm.ainvoke(prompt_input)
     response_meta = _extract_response_meta(response)
     sources_list = response_meta.get("sources") if isinstance(response_meta, dict) else None
     status = build_status_from_response(response)
-    raw_text = response.content if hasattr(response, "content") else str(response)
-    if raw_text is None:
-        raw_text = ""
+    raw_text = _normalize_content_to_text(getattr(response, "content", response))
     try:
         parsed: Answer = parser.parse(raw_text)
         content = parsed.content or raw_text
