@@ -110,8 +110,6 @@ compare-ai/
 │   └── ui/                        # Streamlit UI
 ├── scripts/start_app.py           # FastAPI+Streamlit 실행 스크립트 (main.py에서 호출)
 ├── main.py                        # APP_MODE에 따라 api만 또는 둘 다 실행
-├── notebooks/
-│   └── api_langgraph_test.ipynb
 ├── docs/
 │   ├── changelog/
 │   └── development/
