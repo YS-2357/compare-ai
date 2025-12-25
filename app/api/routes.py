@@ -72,7 +72,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     - `turn`/`max_turns`: 멀티턴 제한 제어(관리자는 우회).
     - `models`(dict): 공급자별 기본 모델을 덮어쓸 때 사용(예: `{"openai": "gpt-4.1-mini"}`).
     - `active_providers`(list[str]): 활성화된 공급자 목록(없으면 전체 사용).
-    - 참고: Cohere `command-a-reasoning-08-2025`는 텍스트 파이프라인과 호환되지 않아 채팅 UI 목록에서 제외됨.
+    - Cohere `command-a-reasoning-08-2025`는 텍스트 파이프라인과 호환되지 않아 채팅 UI 목록에서 제외됨.
 
     응답 스트림(한 줄씩 JSON):
     - `type="partial"`: 모델별 진행 중 결과. `model`, `answer`, `elapsed_ms`, `status`(LLM 응답 상태), `source`(출처), `response_meta`(모델/토큰/종료 사유 등) 포함.

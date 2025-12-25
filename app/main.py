@@ -19,6 +19,7 @@ FASTAPI_DESCRIPTION = (
     "- **토큰 방식 인증**: `Authorization: Bearer <JWT>` 헤더를 넣어야 합니다. 로그인/회원가입으로 토큰을 먼저 받습니다.\n"
     "- **NDJSON 스트림**: `/api/ask`는 한 줄씩 JSON이 오는 방식입니다. `type`이 `partial`이면 진행 중, `summary`이면 최종 요약입니다.\n"
     "- **모델 오버라이드**: 요청 본문 `models` 필드로 공급자별 기본 모델을 덮어쓸 수 있습니다.\n"
+    "- **공급자 ON/OFF**: `active_providers`로 실제 호출할 벤더를 제한할 수 있습니다.\n"
     "- **사용량 헤더**: 응답 헤더 `X-Usage-Limit`, `X-Usage-Remaining`에 남은 호출 횟수가 담깁니다.\n\n"
     "주요 엔드포인트:\n"
     "- `/health` (GET): 서비스가 살아있는지 단순 확인.\n"
@@ -26,6 +27,8 @@ FASTAPI_DESCRIPTION = (
     "- `/api/ask` (POST): LangGraph 워크플로우 스트리밍. 질문/히스토리/모델 오버라이드를 보내면 모델별 답변이 순서대로 흘러옵니다.\n"
     "- `/api/prompt-eval` (POST): 공통 프롬프트로 여러 모델을 호출하고, 벤더별 최신 모델이 교차 평가한 점수/근거를 JSON 스트림으로 반환합니다.\n"
     "- `/usage` (GET): 오늘 남은 호출 횟수 조회(관리자는 `null`).\n\n"
+    "제약:\n"
+    "- Cohere `command-a-reasoning-08-2025`는 텍스트 파이프라인과 호환되지 않아 채팅 UI 목록에서 제외됩니다.\n\n"
     "Swagger UI(`/docs`)와 ReDoc(`/redoc`)에서 요청/응답 예시, 스키마, 오류 포맷을 확인하세요."
 )
 
