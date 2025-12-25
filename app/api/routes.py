@@ -71,6 +71,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     - `history`(list[{"role","content"}]): 이전 대화 히스토리(없으면 새 대화로 처리). 현재 질문은 서버가 별도 분리해 `[Current Question]`에 넣는다.
     - `turn`/`max_turns`: 멀티턴 제한 제어(관리자는 우회).
     - `models`(dict): 공급자별 기본 모델을 덮어쓸 때 사용(예: `{"openai": "gpt-4.1-mini"}`).
+    - `active_providers`(list[str]): 활성화된 공급자 목록(없으면 전체 사용).
 
     응답 스트림(한 줄씩 JSON):
     - `type="partial"`: 모델별 진행 중 결과. `model`, `answer`, `elapsed_ms`, `status`(LLM 응답 상태), `source`(출처), `response_meta`(모델/토큰/종료 사유 등) 포함.
@@ -100,7 +101,20 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
         usage_remaining = await enforce_daily_limit(user["sub"], settings.daily_usage_limit)
 
     model_overrides = payload.models or None
+    active_providers = payload.active_providers or []
     bypass_limits = bool(user.get("bypass"))
+    provider_to_node = {
+        "openai": "call_openai",
+        "gemini": "call_gemini",
+        "anthropic": "call_anthropic",
+        "perplexity": "call_perplexity",
+        "upstage": "call_upstage",
+        "mistral": "call_mistral",
+        "groq": "call_groq",
+        "cohere": "call_cohere",
+        "deepseek": "call_deepseek",
+    }
+    active_nodes = [provider_to_node[p] for p in active_providers if p in provider_to_node]
 
     async def response_stream():
         answers = {}
@@ -130,6 +144,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                 max_turns=max_turns,
                 history=history,
                 model_overrides=model_overrides,
+                active_models=active_nodes if active_nodes else None,
                 bypass_turn_limit=bypass_limits,
             ):
                 event_type = event.get("type", "partial")
