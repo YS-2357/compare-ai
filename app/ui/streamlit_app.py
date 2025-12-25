@@ -203,10 +203,14 @@ def _default_model(provider: str) -> str:
         return env_value
     provider_defaults = {
         "openai": "gpt-4.1-mini",
-        "groq": "llama-3.3-70b-versatile",
-        "cohere": "command-r7b-12-2024",
-        "deepseek": "deepseek-chat",
+        "gemini": "gemini-2.5-flash-lite",
+        "anthropic": "claude-3-5-haiku-20241022",
+        "upstage": "solar-mini",
+        "perplexity": "sonar",
         "mistral": "mistral-small-latest",
+        "groq": "llama-3.3-70b-versatile",
+        "cohere": "command-r-08-2024",
+        "deepseek": "deepseek-chat",
     }
     preferred = provider_defaults.get(provider)
     if preferred and preferred in meta["choices"]:
