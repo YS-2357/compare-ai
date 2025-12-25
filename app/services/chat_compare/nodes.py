@@ -453,6 +453,7 @@ async def invoke_parsed(llm: Any, prompt_input: str, label: str) -> tuple[str, s
     except Exception as exc:
         logger.warning("invoke_parsed:체인 호출 실패 label=%s err=%s", label, exc)
         response = await llm.ainvoke(prompt_input)
+    logger.debug("invoke_parsed:raw_response label=%s raw=%r", label, response)
     response_meta = _extract_response_meta(response)
     sources_list = response_meta.get("sources") if isinstance(response_meta, dict) else None
     status = build_status_from_response(response)
