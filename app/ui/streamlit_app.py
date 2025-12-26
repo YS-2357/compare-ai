@@ -404,6 +404,8 @@ def _append_chat_log_entry(
     answers: dict[str, str],
     sources: dict[str, str | None],
     events: list[dict[str, Any]],
+    *,
+    meta: dict[str, Any] | None = None,
 ) -> None:
     """대화 로그에 새 엔트리를 추가한다."""
 
@@ -414,6 +416,7 @@ def _append_chat_log_entry(
             "answers": answers,
             "sources": sources,
             "events": events,
+            "meta": meta or {},
         }
     )
     logger.debug("_append_chat_log_entry:종료 total=%d", len(st.session_state["chat_log"]))
@@ -602,6 +605,13 @@ def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
     for item in chat_log:
         with st.chat_message("user"):
             st.write(item.get("question"))
+            meta_info = item.get("meta") or {}
+            if meta_info.get("model_overrides"):
+                st.caption(f"모델 오버라이드: {meta_info.get('model_overrides')}")
+            if meta_info.get("usage_limit") is not None or meta_info.get("usage_remaining") is not None:
+                st.caption(
+                    f"사용량: limit={meta_info.get('usage_limit')} remaining={meta_info.get('usage_remaining')}"
+                )
         answers = item.get("answers") or {}
         sources = item.get("sources") or {}
         events = item.get("events") or []
@@ -626,6 +636,11 @@ def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
                     emoji = _status_to_emoji(status)
                     elapsed_txt = f"{elapsed_ms/1000:.1f}s" if elapsed_ms is not None else "-"
                     st.markdown(f"{emoji} **{model}** ⏱️ {elapsed_txt}")
+                    if isinstance(status, dict):
+                        status_text = status.get("status")
+                        detail_text = status.get("detail")
+                        if status_text or detail_text:
+                            st.caption(f"상태: {status_text} | detail: {detail_text}")
                     st.write(answer)
                     meta_text = _format_response_meta(response_meta)
                     if meta_text:
@@ -649,6 +664,11 @@ def _render_chat_history(chat_log: list[dict[str, Any]]) -> None:
                     emoji = _status_to_emoji(status)
                     st.write(f"{emoji} [{model}] {ans}")
                     st.caption(f"⏱️ {elapsed_txt}")
+                    if isinstance(status, dict):
+                        status_text = status.get("status")
+                        detail_text = status.get("detail")
+                        if status_text or detail_text:
+                            st.caption(f"상태: {status_text} | detail: {detail_text}")
                     meta_text = _format_response_meta(response_meta)
                     if meta_text:
                         st.caption(meta_text)
@@ -742,21 +762,6 @@ def _send_question(
             continue
         event_type = parsed.get("event") or parsed.get("type", "partial")
         if event_type == "partial":
-            if parsed.get("phase") == "evaluation":
-                events_acc.append(
-                    {
-                        "evaluator": parsed.get("evaluator"),
-                        "scores": parsed.get("scores"),
-                        "status": parsed.get("status"),
-                        "elapsed_ms": parsed.get("elapsed_ms"),
-                    }
-                )
-                logger.debug(
-                    "_send_prompt_eval:평가 이벤트 evaluator=%s elapsed_ms=%s",
-                    parsed.get("evaluator"),
-                    parsed.get("elapsed_ms"),
-                )
-                continue
             model = parsed.get("model")
             if not model:
                 continue
@@ -783,6 +788,11 @@ def _send_question(
                 elapsed_txt = f"{elapsed/1000:.1f}s" if elapsed is not None else "-"
                 emoji = _status_to_emoji(status)
                 st.markdown(f"{emoji} **{model}** ⏱️ {elapsed_txt}")
+                if isinstance(status, dict):
+                    status_text = status.get("status")
+                    detail_text = status.get("detail")
+                    if status_text or detail_text:
+                        st.caption(f"상태: {status_text} | detail: {detail_text}")
                 if _is_error_status(status):
                     st.error(answer or "응답이 실패했습니다.")
                 else:
@@ -819,6 +829,10 @@ def _send_question(
             slot = placeholders[model]
             with slot.container():
                 st.markdown(f"{emoji} **{model}** ⏱️ {elapsed_txt}")
+                if parsed.get("error_code"):
+                    st.caption(f"error_code: {parsed.get('error_code')}")
+                if parsed.get("request_id"):
+                    st.caption(f"request_id: {parsed.get('request_id')}")
                 st.error(message)
         elif event_type == "summary":
             result = parsed.get("result") or {}
@@ -829,14 +843,34 @@ def _send_question(
             usage_remaining = result.get("usage_remaining")
             if usage_remaining is not None:
                 st.session_state["usage_remaining"] = usage_remaining
-            _append_chat_log_entry(question, answers_acc, sources_acc, events_acc)
+            _append_chat_log_entry(
+                question,
+                answers_acc,
+                sources_acc,
+                events_acc,
+                meta={
+                    "usage_limit": result.get("usage_limit"),
+                    "usage_remaining": usage_remaining,
+                    "model_overrides": result.get("model_overrides") or {},
+                },
+            )
             _update_usage_after_response(resp, admin_mode=st.session_state.get("usage_bypass"))
             logger.info("_send_question:요약 수신 turn=%s max_turns=%s answers=%d", turn, max_turns, len(answers_acc))
             st.rerun()
             return
 
     # 요약이 안 왔을 때도 기록만 남김
-    _append_chat_log_entry(question, answers_acc, sources_acc, events_acc)
+    _append_chat_log_entry(
+        question,
+        answers_acc,
+        sources_acc,
+        events_acc,
+        meta={
+            "usage_limit": _usage_limit_int(),
+            "usage_remaining": st.session_state.get("usage_remaining"),
+            "model_overrides": model_overrides or {},
+        },
+    )
     _update_usage_after_response(resp, admin_mode=st.session_state.get("usage_bypass"))
     logger.warning("_send_question:요약 미수신, 기록만 저장")
     st.rerun()
@@ -863,6 +897,8 @@ def _send_prompt_eval(
         payload["reference_answer"] = reference_answer.strip()
 
     resp = requests.post(eval_url, headers=headers, json=payload, stream=True, timeout=120)
+    usage_limit = resp.headers.get("X-Usage-Limit")
+    usage_remaining = resp.headers.get("X-Usage-Remaining")
     if resp.status_code >= 400:
         try:
             data = resp.json()
@@ -885,6 +921,23 @@ def _send_prompt_eval(
             continue
         event_type = parsed.get("event") or parsed.get("type", "partial")
         if event_type == "partial":
+            if parsed.get("phase") == "evaluation":
+                evaluator = parsed.get("evaluator") or parsed.get("model") or "unknown"
+                status = parsed.get("status") or {}
+                elapsed = parsed.get("elapsed_ms")
+                score_count = len(parsed.get("scores") or [])
+                events_acc.append(
+                    {
+                        "evaluator": evaluator,
+                        "scores": parsed.get("scores"),
+                        "status": status,
+                        "elapsed_ms": elapsed,
+                    }
+                )
+                st.caption(
+                    f"🧪 평가 이벤트: {evaluator} | scores={score_count} | elapsed_ms={elapsed} | status={status}"
+                )
+                continue
             model = parsed.get("model")
             if not model:
                 continue
@@ -907,6 +960,13 @@ def _send_prompt_eval(
                 placeholders[model] = st.empty()
             with placeholders[model].container():
                 st.markdown(f"{emoji} **{model}** ⏱️ {elapsed_txt}")
+                phase = parsed.get("phase") or "generation"
+                st.caption(f"phase: {phase}")
+                if isinstance(status, dict):
+                    status_text = status.get("status")
+                    detail_text = status.get("detail")
+                    if status_text or detail_text:
+                        st.caption(f"상태: {status_text} | detail: {detail_text}")
                 if _is_error_status(status):
                     st.error(answer or "응답이 실패했습니다.")
                 else:
@@ -930,12 +990,20 @@ def _send_prompt_eval(
                     "error_code": parsed.get("error_code"),
                 }
             )
+            if parsed.get("error_code"):
+                st.caption(f"error_code: {parsed.get('error_code')}")
+            if parsed.get("request_id"):
+                st.caption(f"request_id: {parsed.get('request_id')}")
         elif event_type == "summary":
             summary_data = parsed.get("result") or {}
             scores = summary_data.get("scores") or []
             avg_score = summary_data.get("avg_score")
             logger.info("_send_prompt_eval:요약 수신 scores=%d avg=%s", len(scores), avg_score)
             st.subheader("🏁 평가 결과")
+            if model_overrides:
+                st.caption(f"모델 오버라이드: {model_overrides}")
+            if usage_limit is not None or usage_remaining is not None:
+                st.caption(f"사용량: limit={usage_limit} remaining={usage_remaining}")
             if avg_score is not None:
                 st.markdown(f"✨ **평균 점수:** {avg_score}")
             if scores:
