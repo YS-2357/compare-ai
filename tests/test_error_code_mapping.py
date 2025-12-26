@@ -27,6 +27,8 @@ def test_resolve_error_code() -> None:
     assert _resolve_error_code(401, "authorization header missing") == ErrorCode.AUTH_MISSING_TOKEN
     assert _resolve_error_code(401, "invalid token header") == ErrorCode.AUTH_INVALID_TOKEN
     assert _resolve_error_code(429, "daily usage limit exceeded") == ErrorCode.USAGE_LIMIT_EXCEEDED
+    assert _resolve_error_code(503, "timeout") == ErrorCode.UPSTREAM_TIMEOUT
+    assert _resolve_error_code(504, "timed out") == ErrorCode.UPSTREAM_TIMEOUT
     assert _resolve_error_code(503, "rate limit backend unavailable") == ErrorCode.UPSTREAM_ERROR
     assert _resolve_error_code(400, "질문을 입력해주세요.") == ErrorCode.VALIDATION_ERROR
 
