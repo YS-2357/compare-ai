@@ -22,6 +22,32 @@ from .clients import LABEL_TO_KEY, build_model_prompt, llm_factory
 logger = get_logger(__name__)
 
 
+def _normalize_content_to_text(content: Any) -> str:
+    """LLM content를 문자열로 안전하게 변환한다."""
+
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(str(item.get("text") or ""))
+            elif hasattr(item, "text"):
+                parts.append(str(getattr(item, "text") or ""))
+            elif hasattr(item, "content"):
+                parts.append(str(getattr(item, "content") or ""))
+            else:
+                parts.append(str(item))
+        return " ".join([p for p in parts if p])
+    if hasattr(content, "text"):
+        return str(getattr(content, "text") or "")
+    if hasattr(content, "content"):
+        return str(getattr(content, "content") or "")
+    return str(content)
+
+
 async def _call_single_model(label: str, prompt_text: str, model_name: str | None = None) -> dict[str, Any]:
     """단일 모델 호출 및 파싱 실패 대비."""
 
@@ -32,7 +58,12 @@ async def _call_single_model(label: str, prompt_text: str, model_name: str | Non
         response = await llm.ainvoke(prompt_text)
         status = build_status_from_response(response)
         response_meta = extract_response_meta(response)
-        content = getattr(response, "content", None) or str(response)
+        raw_text = _normalize_content_to_text(getattr(response, "content", response))
+        content = raw_text.strip()
+        if not content:
+            content = str(response) if response is not None else ""
+        if not content:
+            content = "응답이 비어있습니다."
         logger.debug("_call_single_model:raw_response label=%s raw=%s", label, repr(response))
         sources = extract_sources(response)
         content_with_sources = append_sources_block(content, sources)
