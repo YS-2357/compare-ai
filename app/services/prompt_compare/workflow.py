@@ -81,6 +81,7 @@ async def stream_prompt_eval(
         logger.error("stream_prompt_eval:질문 비어있음")
         raise ValueError("질문을 입력해주세요.")
 
+    start_time = time.perf_counter()
     try:
         raw_models = active_models or [
             "OpenAI",
@@ -114,7 +115,8 @@ async def stream_prompt_eval(
             res = await coro
             results.append(res)
             yield {
-                "type": "partial",
+                "event": "partial",
+                "phase": "generation",
                 "model": res["model"],
                 "answer": res["answer"],
                 "status": res.get("status") or {},
@@ -157,6 +159,17 @@ async def stream_prompt_eval(
             else:
                 evaluation_outputs.append(ev_res)
 
+        for ev in evaluation_outputs:
+            yield {
+                "event": "partial",
+                "phase": "evaluation",
+                "model": ev.get("evaluator"),
+                "evaluator": ev.get("evaluator"),
+                "scores": ev.get("scores"),
+                "status": ev.get("status"),
+                "elapsed_ms": ev.get("elapsed_ms"),
+            }
+
         # 평가 실패/미응답 모델은 점수 -1로 보강
         failed_models = [r["model"] for r in results if r.get("error")]
         if failed_models:
@@ -183,7 +196,9 @@ async def stream_prompt_eval(
         elapsed_total_ms = int((time.perf_counter() - start) * 1000)
 
         yield {
-            "type": "summary",
+            "event": "summary",
+            "status": "ok",
+            "elapsed_ms": elapsed_total_ms,
             "result": {
                 "question": question,
                 "answers": {r["model"]: r.get("answer") for r in results},
@@ -196,7 +211,15 @@ async def stream_prompt_eval(
         }
     except Exception as exc:
         logger.error("PromptCompare 전체 실패: %s", exc)
-        yield {"type": "error", "message": str(exc), "model": None, "node": "prompt_compare"}
+        yield {
+            "event": "error",
+            "error_code": "UNKNOWN_ERROR",
+            "detail": str(exc),
+            "status": "error",
+            "model": None,
+            "node": "prompt_compare",
+            "elapsed_ms": int((time.perf_counter() - start_time) * 1000),
+        }
     finally:
         logger.debug("stream_prompt_eval:종료 question=%s", question[:50] if question else "")
 

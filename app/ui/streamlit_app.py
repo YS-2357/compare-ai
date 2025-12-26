@@ -548,11 +548,16 @@ def _render_auth_section(base_url: str) -> None:
                         json={"email": email, "password": password},
                         timeout=15,
                     )
+                    data = resp.json()
                     st.write(f"회원가입 상태: {resp.status_code}")
-                    st.json(resp.json())
+                    if resp.ok:
+                        st.success("회원가입이 완료되었습니다.")
+                        st.json(data)
+                    else:
+                        st.error(data.get("detail") or "회원가입에 실패했습니다.")
                 except Exception as exc:
                     logger.error("_render_auth_section:회원가입 실패 email=%s err=%s", email, exc)
-                    st.error(f"회원가입 실패: {exc}")
+                    st.error("회원가입 요청 중 오류가 발생했습니다.")
     with col2:
         if st.button("로그인"):
             if not base_url:
@@ -574,10 +579,12 @@ def _render_auth_section(base_url: str) -> None:
                         st.session_state["auth_user"] = data.get("user")
                         st.success("로그인 성공: 토큰 저장 완료")
                         st.rerun()
+                    elif not resp.ok:
+                        st.error(data.get("detail") or "로그인에 실패했습니다.")
                     st.json(data)
                 except Exception as exc:
                     logger.error("_render_auth_section:로그인 실패 email=%s err=%s", email, exc)
-                    st.error(f"로그인 실패: {exc}")
+                    st.error("로그인 요청 중 오류가 발생했습니다.")
     if not st.session_state.get("_log_auth_section_done"):
         logger.debug("_render_auth_section:종료")
         st.session_state["_log_auth_section_done"] = True
@@ -710,6 +717,13 @@ def _send_question(
         payload["active_providers"] = active_providers
     resp = requests.post(ask_url, headers=headers, json=payload, stream=True, timeout=60)
     _sync_usage_from_headers(resp)
+    if resp.status_code >= 400:
+        try:
+            data = resp.json()
+            st.error(data.get("detail") or "요청 처리에 실패했습니다.")
+        except Exception:
+            st.error("요청 처리에 실패했습니다.")
+        return
 
     live_key = f"live_{turn_value}"
     placeholders = {}
@@ -726,8 +740,23 @@ def _send_question(
             parsed = line
         if not isinstance(parsed, dict):
             continue
-        event_type = parsed.get("type", "partial")
+        event_type = parsed.get("event") or parsed.get("type", "partial")
         if event_type == "partial":
+            if parsed.get("phase") == "evaluation":
+                events_acc.append(
+                    {
+                        "evaluator": parsed.get("evaluator"),
+                        "scores": parsed.get("scores"),
+                        "status": parsed.get("status"),
+                        "elapsed_ms": parsed.get("elapsed_ms"),
+                    }
+                )
+                logger.debug(
+                    "_send_prompt_eval:평가 이벤트 evaluator=%s elapsed_ms=%s",
+                    parsed.get("evaluator"),
+                    parsed.get("elapsed_ms"),
+                )
+                continue
             model = parsed.get("model")
             if not model:
                 continue
@@ -769,8 +798,8 @@ def _send_question(
                         st.caption(f"출처: {src}")
         elif event_type == "error":
             model = parsed.get("model") or "unknown"
-            message = parsed.get("message") or "에러가 발생했습니다."
-            status = parsed.get("status") or {}
+            message = parsed.get("detail") or parsed.get("message") or "에러가 발생했습니다."
+            status = parsed.get("status") or "error"
             elapsed = parsed.get("elapsed_ms")
             elapsed_txt = f"{elapsed/1000:.1f}s" if elapsed is not None else "-"
             emoji = _status_to_emoji(status or "error")
@@ -782,6 +811,7 @@ def _send_question(
                     "status": status or "error",
                     "elapsed_ms": elapsed,
                     "response_meta": parsed.get("response_meta"),
+                    "error_code": parsed.get("error_code"),
                 }
             )
             if model not in placeholders:
@@ -833,6 +863,13 @@ def _send_prompt_eval(
         payload["reference_answer"] = reference_answer.strip()
 
     resp = requests.post(eval_url, headers=headers, json=payload, stream=True, timeout=120)
+    if resp.status_code >= 400:
+        try:
+            data = resp.json()
+            st.error(data.get("detail") or "요청 처리에 실패했습니다.")
+        except Exception:
+            st.error("요청 처리에 실패했습니다.")
+        return
     placeholders: dict[str, Any] = {}
     events_acc: list[dict[str, Any]] = []
     summary_data: dict[str, Any] | None = None
@@ -846,7 +883,7 @@ def _send_prompt_eval(
             parsed = line
         if not isinstance(parsed, dict):
             continue
-        event_type = parsed.get("type", "partial")
+        event_type = parsed.get("event") or parsed.get("type", "partial")
         if event_type == "partial":
             model = parsed.get("model")
             if not model:
@@ -879,7 +916,7 @@ def _send_prompt_eval(
                     st.caption(meta_text)
                 _render_sources_from_meta(parsed.get("response_meta"))
         elif event_type == "error":
-            message = parsed.get("message") or "에러가 발생했습니다."
+            message = parsed.get("detail") or parsed.get("message") or "에러가 발생했습니다."
             st.error(message)
             logger.error("_send_prompt_eval:에러 이벤트 model=%s message=%s", parsed.get("model"), message)
             events_acc.append(
@@ -890,6 +927,7 @@ def _send_prompt_eval(
                     "status": parsed.get("status") or "error",
                     "elapsed_ms": parsed.get("elapsed_ms"),
                     "response_meta": parsed.get("response_meta"),
+                    "error_code": parsed.get("error_code"),
                 }
             )
         elif event_type == "summary":

@@ -5,9 +5,16 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router as api_router
+from .api.error_handlers import (
+    http_exception_handler,
+    unhandled_exception_handler,
+    validation_exception_handler,
+)
 from .auth.supabase import shutdown_auth_client
 from .rate_limit.upstash import shutdown_rate_limiter
 from .utils.config import Settings, get_settings
@@ -17,7 +24,7 @@ FASTAPI_DESCRIPTION = (
     "LangGraph 기반 Compare-AI 백엔드 API입니다. 처음 보는 분도 이해하기 쉽게 기본 개념과 경로를 설명합니다.\n\n"
     "핵심 개념:\n"
     "- **토큰 방식 인증**: `Authorization: Bearer <JWT>` 헤더를 넣어야 합니다. 로그인/회원가입으로 토큰을 먼저 받습니다.\n"
-    "- **NDJSON 스트림**: `/api/ask`는 한 줄씩 JSON이 오는 방식입니다. `type`이 `partial`이면 진행 중, `summary`이면 최종 요약입니다.\n"
+    "- **NDJSON 스트림**: `/api/ask`는 한 줄씩 JSON이 오는 방식입니다. `event`가 `partial`이면 진행 중, `summary`이면 최종 요약입니다.\n"
     "- **모델 오버라이드**: 요청 본문 `models` 필드로 공급자별 기본 모델을 덮어쓸 수 있습니다.\n"
     "- **공급자 ON/OFF**: `active_providers`로 실제 호출할 벤더를 제한할 수 있습니다.\n"
     "- **사용량 헤더**: 응답 헤더 `X-Usage-Limit`, `X-Usage-Remaining`에 남은 호출 횟수가 담깁니다.\n\n"
@@ -79,6 +86,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
 
     app.include_router(api_router)
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
     app.state.settings = settings
     return app
 

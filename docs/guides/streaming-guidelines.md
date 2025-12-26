@@ -16,6 +16,7 @@
 - `model`: 모델 키 또는 별칭
 - `status`: `ok`/`error` 등 상태
 - `elapsed_ms`: 처리 시간(ms)
+- `phase`: 필요 시 `generation`/`evaluation` 구분(프롬프트 평가용)
 
 ## 순서 규칙
 - `partial`은 0회 이상 발생할 수 있다.

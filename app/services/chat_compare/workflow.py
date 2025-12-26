@@ -128,7 +128,16 @@ async def stream_chat(
     if not bypass_turn_limit and turn > resolved_max_turns:
         warning = f"최대 턴({resolved_max_turns})을 초과했습니다. 새 질문으로 시작해주세요."
         logger.warning("턴 초과 - 실행 중단: turn=%s, max=%s", turn, resolved_max_turns)
-        yield {"type": "error", "message": warning, "node": None, "model": None, "turn": turn}
+        yield {
+            "event": "error",
+            "error_code": "VALIDATION_ERROR",
+            "detail": warning,
+            "status": "error",
+            "node": None,
+            "model": None,
+            "turn": turn,
+            "elapsed_ms": 0,
+        }
         return
 
     logger.info("LangGraph 스트림 실행: %s", preview_text(question))
@@ -197,18 +206,21 @@ async def stream_chat(
                     "source": (state.get("raw_sources") or {}).get(model_label),
                     "response_meta": (state.get("response_meta") or {}).get(model_label),
                     "messages": _normalize_messages(model_msgs),
-                    "type": "partial",
+                    "event": "partial",
                     "turn": turn_index,
                     "elapsed_ms": elapsed_ms,
                 }
     except Exception as exc:
         logger.error("LangGraph 스트림 오류: %s", exc)
         yield {
-            "type": "error",
-            "message": str(exc),
+            "event": "error",
+            "error_code": "UNKNOWN_ERROR",
+            "detail": str(exc),
+            "status": "error",
             "node": None,
             "model": None,
             "turn": turn,
+            "elapsed_ms": int((time.perf_counter() - start_time) * 1000),
         }
     finally:
         logger.debug("stream_chat:종료 turn=%s", turn)

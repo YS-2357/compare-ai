@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import time
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
@@ -49,7 +51,7 @@ async def health():
             "content": {
                 "application/json": {
                     "example": {
-                        "type": "partial",
+                        "event": "partial",
                         "model": "OpenAI",
                         "answer": "...",
                         "status": {"status": 200, "detail": "stop"},
@@ -75,9 +77,9 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     - Cohere `command-a-reasoning-08-2025`는 텍스트 파이프라인과 호환되지 않아 채팅 UI 목록에서 제외됨.
 
     응답 스트림(한 줄씩 JSON):
-    - `type="partial"`: 모델별 진행 중 결과. `model`, `answer`, `elapsed_ms`, `status`(LLM 응답 상태), `source`(출처), `response_meta`(모델/토큰/종료 사유 등) 포함.
-    - `type="error"`: 특정 모델/노드 오류. `message`, `model`, `node`, `status` 포함.
-    - `type="summary"`: 전체 완료 메타. `answers`(모델별 최종 답변), `order`(완료 순서), `api_status`, `durations_ms`, `sources`, `response_meta`, `messages`, `errors`, `usage_limit`, `usage_remaining` 포함.
+    - `event="partial"`: 모델별 진행 중 결과. `model`, `answer`, `elapsed_ms`, `status`(LLM 응답 상태), `source`(출처), `response_meta`(모델/토큰/종료 사유 등) 포함.
+    - `event="error"`: 특정 모델/노드 오류. `detail`, `model`, `node`, `status`, `error_code` 포함.
+    - `event="summary"`: 전체 완료 메타. `answers`(모델별 최종 답변), `order`(완료 순서), `api_status`, `durations_ms`, `sources`, `response_meta`, `messages`, `errors`, `usage_limit`, `usage_remaining` 포함.
 
     헤더:
     - `X-Usage-Limit`, `X-Usage-Remaining`: 남은 일일 호출 횟수(관리자는 null).
@@ -138,6 +140,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                 seen_messages.add(key)
                 messages.append({"role": role, "content": content})
 
+        start_time = time.perf_counter()
         try:
             async for event in stream_chat(
                 question,
@@ -148,7 +151,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                 active_models=active_nodes if active_nodes else None,
                 bypass_turn_limit=bypass_limits,
             ):
-                event_type = event.get("type", "partial")
+                event_type = event.get("event") or event.get("type", "partial")
                 if event_type == "partial":
                     model = event.get("model")
                     if model:
@@ -172,21 +175,31 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                         "스트림 오류 이벤트 수신 (node=%s, model=%s): %s",
                         event.get("node"),
                         event.get("model"),
-                        event.get("message"),
+                        event.get("detail"),
                     )
                     errors.append(
                         {
-                            "message": event.get("message"),
+                            "detail": event.get("detail"),
+                            "error_code": event.get("error_code"),
                             "node": event.get("node"),
                             "model": event.get("model"),
                         }
                     )
                 yield json.dumps(event, ensure_ascii=False) + "\n"
         except Exception as exc:  # pragma: no cover
-            error_event = {"type": "error", "message": str(exc), "node": None, "model": None}
+            error_event = {
+                "event": "error",
+                "error_code": "UNKNOWN_ERROR",
+                "detail": str(exc),
+                "status": "error",
+                "node": None,
+                "model": None,
+                "elapsed_ms": int((time.perf_counter() - start_time) * 1000),
+            }
             errors.append(
                 {
-                    "message": str(exc),
+                    "detail": str(exc),
+                    "error_code": "UNKNOWN_ERROR",
                     "node": None,
                     "model": None,
                 }
@@ -205,7 +218,9 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
                 else None
             )
             summary = {
-                "type": "summary",
+                "event": "summary",
+                "status": "ok",
+                "elapsed_ms": int((time.perf_counter() - start_time) * 1000),
                 "result": {
                     "question": question,
                     "answers": answers,
@@ -244,7 +259,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
             "content": {
                 "application/json": {
                     "example": {
-                        "type": "summary",
+                        "event": "summary",
                         "result": {
                             "scores": [
                                 {"model": "OpenAI", "score": 9.5, "rank": 1, "rationale": "응답 완결성/정확도 우수", "status": {"status": 200, "detail": "stop"}}
@@ -269,10 +284,10 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
     description=(
         "공통 프롬프트로 여러 모델의 답변을 생성한 뒤, 벤더별 최신 모델이 교차 평가하여 점수/근거를 NDJSON 스트림으로 반환합니다.\n\n"
         "응답 이벤트:\n"
-        "- `type=\"partial\"` & `phase=\"generation\"`: 모델별 원본 답변이 도착할 때 발생. `model`, `answer`, `status`, `elapsed_ms`, `response_meta` 포함.\n"
-        "- `type=\"partial\"` & `phase=\"evaluation\"`: 평가자가 각 타깃 모델을 채점할 때 발생. `evaluator`, `target_model`, `score`, `rationale`, `status`, `elapsed_ms` 포함.\n"
-        "- `type=\"summary\"`: 모든 평가가 끝난 후 최종 점수 표(`scores`), 평가자별 원본 점수/근거(`evaluations`), 평균점수(`avg_score`), 모델별 `response_meta`를 포함.\n"
-        "- `type=\"error\"`: 처리 중 오류.\n\n"
+        "- `event=\"partial\"` & `phase=\"generation\"`: 모델별 원본 답변이 도착할 때 발생. `model`, `answer`, `status`, `elapsed_ms`, `response_meta` 포함.\n"
+        "- `event=\"partial\"` & `phase=\"evaluation\"`: 평가자가 각 타깃 모델을 채점할 때 발생. `evaluator`, `target_model`, `score`, `rationale`, `status`, `elapsed_ms` 포함.\n"
+        "- `event=\"summary\"`: 모든 평가가 끝난 후 최종 점수 표(`scores`), 평가자별 원본 점수/근거(`evaluations`), 평균점수(`avg_score`), 모델별 `response_meta`를 포함.\n"
+        "- `event=\"error\"`: 처리 중 오류.\n\n"
         "옵션:\n"
         "- `reference_answer`: 모범 답변 예시를 넣으면 평가 프롬프트에 참고용으로 포함(없으면 기본 루브릭으로 평가).\n"
         "- `model_overrides`: 공급자별 모델 오버라이드(예: `{ \"openai\": \"gpt-4.1-mini\" }`).\n\n"
@@ -293,6 +308,7 @@ async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depe
         usage_remaining = await enforce_daily_limit(user["sub"], settings.daily_usage_limit)
 
     async def response_stream():
+        start_time = time.perf_counter()
         try:
             async for event in stream_prompt_eval(
                 question,
@@ -304,7 +320,15 @@ async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depe
                 yield json.dumps(event, ensure_ascii=False) + "\n"
         except Exception as exc:  # pragma: no cover
             logger.error("프롬프트 평가 스트림 오류: %s", exc)
-            error_event = {"type": "error", "message": str(exc), "node": None, "model": None}
+            error_event = {
+                "event": "error",
+                "error_code": "UNKNOWN_ERROR",
+                "detail": str(exc),
+                "status": "error",
+                "node": None,
+                "model": None,
+                "elapsed_ms": int((time.perf_counter() - start_time) * 1000),
+            }
             yield json.dumps(error_event, ensure_ascii=False) + "\n"
         finally:
             logger.debug("prompt_eval:종료 question=%s", _preview(question))
