@@ -17,6 +17,7 @@
 ## 응답 포맷
 - `error_code`, `status`, `detail`을 포함한다.
 - 사용자 메시지는 UI에서 매핑한다.
+- 표준 에러 코드는 `app/api/schemas/common.py`의 `ErrorCode` enum을 따른다.
 
 ## 예시
 

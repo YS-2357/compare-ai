@@ -2,7 +2,7 @@
 
 from .ask import AskRequest
 from .auth import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
-from .common import ErrorResponse, HealthResponse, UsageResponse
+from .common import ErrorCode, ErrorResponse, HealthResponse, UsageResponse
 from .prompt_eval import PromptEvalRequest
 
 __all__ = [
@@ -13,6 +13,7 @@ __all__ = [
     "LoginRequest",
     "LoginResponse",
     "ErrorResponse",
+    "ErrorCode",
     "HealthResponse",
     "UsageResponse",
 ]
