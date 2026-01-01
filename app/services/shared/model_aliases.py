@@ -8,7 +8,7 @@ LATEST_EVAL_MODELS: dict[str, str] = {
     "Upstage": "solar-pro2-251215",
     "Mistral": "mistral-medium-latest",
     "Groq": "llama-3.3-70b-versatile",
-    "Cohere": "command-a-reasoning-08-2025",
+    "Cohere": "command-r-08-2024",
     "DeepSeek": "deepseek-reasoner",
 }
 

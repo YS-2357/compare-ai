@@ -38,6 +38,7 @@ class Settings:
     upstash_redis_url: str | None = None
     upstash_redis_token: str | None = None
     daily_usage_limit: int = 3
+    prompt_eval_daily_limit: int = 1
     model_openai: str = "gpt-4.1-mini"
     model_gemini: str = "gemini-2.5-flash-lite"
     model_anthropic: str = "claude-3-5-haiku-20241022"
@@ -81,6 +82,7 @@ class Settings:
             upstash_redis_url=(os.getenv("UPSTASH_REDIS_URL") or "").strip() or None,
             upstash_redis_token=(os.getenv("UPSTASH_REDIS_TOKEN") or "").strip() or None,
             daily_usage_limit=int(os.getenv("DAILY_USAGE_LIMIT", "3")),
+            prompt_eval_daily_limit=int(os.getenv("PROMPT_EVAL_DAILY_LIMIT", "1")),
             model_openai=os.getenv("MODEL_OPENAI", "gpt-4.1-mini"),
             model_gemini=os.getenv("MODEL_GEMINI", "gemini-2.5-flash-lite"),
             model_anthropic=os.getenv("MODEL_ANTHROPIC", "claude-3-5-haiku-20241022"),

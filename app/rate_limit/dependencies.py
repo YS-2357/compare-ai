@@ -21,13 +21,13 @@ def _seconds_until_midnight_utc() -> int:
     return result
 
 
-async def enforce_daily_limit(user_id: str, limit: int) -> int:
+async def enforce_daily_limit(user_id: str, limit: int, *, scope: str = "usage") -> int:
     """사용자별 일일 호출 제한을 적용한다."""
 
-    logger.debug("enforce_daily_limit:시작 user=%s limit=%s", user_id, limit)
+    logger.debug("enforce_daily_limit:시작 user=%s limit=%s scope=%s", user_id, limit, scope)
     try:
         client = get_rate_limiter()
-        key = f"usage:{user_id}:{datetime.now(timezone.utc).date().isoformat()}"
+        key = f"{scope}:{user_id}:{datetime.now(timezone.utc).date().isoformat()}"
         count = await client.incr_with_expiry(key, _seconds_until_midnight_utc())
         if count > limit:
             raise HTTPException(
@@ -35,7 +35,7 @@ async def enforce_daily_limit(user_id: str, limit: int) -> int:
                 detail="daily usage limit exceeded",
             )
         remaining = max(0, limit - count)
-        logger.info("enforce_daily_limit:성공 user=%s remaining=%s", user_id, remaining)
+        logger.info("enforce_daily_limit:성공 user=%s remaining=%s scope=%s", user_id, remaining, scope)
         return remaining
     except HTTPException:
         raise

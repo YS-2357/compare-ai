@@ -101,7 +101,7 @@ async def ask_question(payload: AskRequest, user: AuthenticatedUser = Depends(ge
 
     usage_remaining: int | None = None
     if not user.get("bypass"):
-        usage_remaining = await enforce_daily_limit(user["sub"], settings.daily_usage_limit)
+        usage_remaining = await enforce_daily_limit(user["sub"], settings.daily_usage_limit, scope="chat")
 
     model_overrides = payload.models or None
     active_providers = payload.active_providers or []
@@ -305,7 +305,11 @@ async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depe
 
     usage_remaining: int | None = None
     if not user.get("bypass"):
-        usage_remaining = await enforce_daily_limit(user["sub"], settings.daily_usage_limit)
+        usage_remaining = await enforce_daily_limit(
+            user["sub"],
+            settings.prompt_eval_daily_limit,
+            scope="prompt_eval",
+        )
 
     async def response_stream():
         start_time = time.perf_counter()
@@ -335,7 +339,7 @@ async def prompt_eval(payload: PromptEvalRequest, user: AuthenticatedUser = Depe
 
     headers = {}
     if usage_remaining is not None:
-        headers["X-Usage-Limit"] = str(settings.daily_usage_limit)
+        headers["X-Usage-Limit"] = str(settings.prompt_eval_daily_limit)
         headers["X-Usage-Remaining"] = str(usage_remaining)
 
     return StreamingResponse(response_stream(), media_type="application/json", headers=headers)

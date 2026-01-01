@@ -47,11 +47,16 @@ def build_eval_prompt(
         rubric_line=rubric_line,
         format_instructions=instructions,
     )
+    # 모든 동적 값에 포함된 중괄호를 이스케이프 (ChatPromptTemplate 변수 오인 방지)
+    safe_question = question.replace("{", "{{").replace("}", "}}")
+    safe_prompt_text = prompt_text.replace("{", "{{").replace("}", "}}")
+    safe_examples = examples.replace("{", "{{").replace("}", "}}")
+    safe_reference_block = reference_block.replace("{", "{{").replace("}", "}}") if reference_block else ""
     user = user_template.format(
-        question=question,
-        prompt_text=prompt_text,
-        answers=examples,
-        reference_block=reference_block,
+        question=safe_question,
+        prompt_text=safe_prompt_text,
+        answers=safe_examples,
+        reference_block=safe_reference_block,
     )
     logger.info("prompt_compare_version=%s", version)
     template = ChatPromptTemplate.from_messages(
