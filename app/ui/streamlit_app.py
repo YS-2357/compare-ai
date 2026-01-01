@@ -356,6 +356,22 @@ def _sync_usage_from_headers(resp: requests.Response) -> None:
     )
 
 
+def _sync_prompt_eval_usage_from_headers(resp: requests.Response) -> None:
+    """프롬프트 평가 헤더의 사용량 정보를 세션에 반영한다."""
+
+    limit = resp.headers.get("X-Usage-Limit")
+    remaining = resp.headers.get("X-Usage-Remaining")
+    if limit is not None and limit.isdigit():
+        st.session_state["prompt_eval_usage_limit"] = int(limit)
+    if remaining is not None and remaining.isdigit():
+        st.session_state["prompt_eval_usage_remaining"] = int(remaining)
+    logger.debug(
+        "_sync_prompt_eval_usage_from_headers:limit=%s remaining=%s",
+        st.session_state.get("prompt_eval_usage_limit"),
+        st.session_state.get("prompt_eval_usage_remaining"),
+    )
+
+
 def _build_history_payload(chat_log: list[dict[str, Any]]) -> list[dict[str, str]]:
     """기존 대화 로그를 LangGraph history 페이로드로 변환한다."""
 
@@ -714,6 +730,9 @@ def _handle_logout() -> None:
     st.session_state.pop("usage_remaining", None)
     st.session_state.pop("usage_bypass", None)
     st.session_state.pop("usage_fetched", None)
+    st.session_state.pop("prompt_eval_usage_remaining", None)
+    st.session_state.pop("prompt_eval_usage_limit", None)
+    st.session_state.pop("prompt_eval_usage_fetched", None)
     st.session_state.pop("chat_log", None)
     st.rerun()
 
@@ -897,6 +916,7 @@ def _send_prompt_eval(
         payload["reference_answer"] = reference_answer.strip()
 
     resp = requests.post(eval_url, headers=headers, json=payload, stream=True, timeout=120)
+    _sync_prompt_eval_usage_from_headers(resp)
     usage_limit = resp.headers.get("X-Usage-Limit")
     usage_remaining = resp.headers.get("X-Usage-Remaining")
     if resp.status_code >= 400:
@@ -1180,12 +1200,16 @@ def main() -> None:
         st.session_state["usage_remaining"] = _usage_limit_int()
     if "usage_bypass" not in st.session_state:
         st.session_state["usage_bypass"] = False
+    if "prompt_eval_usage_remaining" not in st.session_state:
+        st.session_state["prompt_eval_usage_remaining"] = None
+    if "prompt_eval_usage_limit" not in st.session_state:
+        st.session_state["prompt_eval_usage_limit"] = None
     if "chat_log" not in st.session_state:
         st.session_state["chat_log"] = []
     if "prompt_eval_log" not in st.session_state:
         st.session_state["prompt_eval_log"] = []
 
-    # 로그인 후 최초 1회 사용량 조회
+    # 로그인 후 최초 1회 사용량 조회 (채팅/프롬프트 평가 분리)
     if st.session_state.get("auth_token") and "usage_fetched" not in st.session_state:
         usage_url = f"{base_url}/usage"
         try:
@@ -1202,17 +1226,28 @@ def main() -> None:
             st.session_state["usage_fetched"] = True
         except Exception:
             st.session_state["usage_fetched"] = True
+    if st.session_state.get("auth_token") and "prompt_eval_usage_fetched" not in st.session_state:
+        usage_url = f"{base_url}/usage/prompt-eval"
+        try:
+            resp = requests.get(usage_url, headers={"Authorization": st.session_state["auth_token"]}, timeout=5)
+            data = resp.json()
+            if resp.ok:
+                remaining_val = data.get("remaining")
+                limit_val = data.get("limit")
+                if isinstance(limit_val, int):
+                    st.session_state["prompt_eval_usage_limit"] = limit_val
+                if data.get("bypass"):
+                    st.session_state["prompt_eval_usage_remaining"] = None
+                    st.session_state["usage_bypass"] = True
+                elif isinstance(remaining_val, int):
+                    st.session_state["prompt_eval_usage_remaining"] = remaining_val
+            st.session_state["prompt_eval_usage_fetched"] = True
+        except Exception:
+            st.session_state["prompt_eval_usage_fetched"] = True
     if user := st.session_state.get("auth_user"):
         st.caption(f"로그인됨: {user.get('email')}")
     if st.session_state.get("usage_bypass"):
         st.caption("관리자 권한 활성화 (일일 제한 없음)")
-    remaining = st.session_state.get("usage_remaining")
-    if remaining is None:
-        st.success("남은 일일 사용 횟수: 무제한 (관리자 모드)")
-    elif remaining == 0:
-        st.error("남은 일일 사용 횟수: **0회** (관리자 우회 필요)")
-    else:
-        st.info(f"남은 일일 사용 횟수: **{remaining}회** (관리자 우회 시 제한 없음)")
     if st.button("로그아웃"):
         _handle_logout()
 
@@ -1222,6 +1257,13 @@ def main() -> None:
 
     with tab_compare:
         st.header("대화")
+        remaining = st.session_state.get("usage_remaining")
+        if remaining is None:
+            st.success("남은 일일 사용 횟수: 무제한 (관리자 모드)")
+        elif remaining == 0:
+            st.error("남은 일일 사용 횟수: **0회** (관리자 우회 필요)")
+        else:
+            st.info(f"남은 일일 사용 횟수: **{remaining}회** (관리자 우회 시 제한 없음)")
         _render_chat_history(st.session_state["chat_log"])
         show_chat_graph = st.toggle("그래프 보기 (Chat Compare)", value=False)
 
@@ -1298,6 +1340,19 @@ def main() -> None:
 
     with tab_prompt:
         st.header("프롬프트 평가")
+        prompt_remaining = st.session_state.get("prompt_eval_usage_remaining")
+        prompt_limit = st.session_state.get("prompt_eval_usage_limit")
+        if prompt_remaining is None:
+            st.success("프롬프트 평가 남은 횟수: 무제한 (관리자 모드)")
+        elif prompt_remaining == 0:
+            st.error("프롬프트 평가 남은 횟수: **0회**")
+        elif isinstance(prompt_remaining, int):
+            if isinstance(prompt_limit, int):
+                st.info(f"프롬프트 평가 남은 횟수: **{prompt_remaining}/{prompt_limit}회**")
+            else:
+                st.info(f"프롬프트 평가 남은 횟수: **{prompt_remaining}회**")
+        else:
+            st.caption("프롬프트 평가 남은 횟수: 확인 중")
         st.write("모델별 프롬프트를 다르게 적용해 응답을 받고, 고정 평가모델로 블라인드 평가합니다.")
         show_eval_graph = st.toggle("그래프 보기 (Prompt Compare)", value=False)
         if not eval_url:
