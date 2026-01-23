@@ -18,6 +18,13 @@
 - `elapsed_ms`: 처리 시간(ms)
 - `phase`: 필요 시 `generation`/`evaluation` 구분(프롬프트 평가용)
 
+## 요약 표
+```
+partial: event/model/status/elapsed_ms (+ phase, answer/score)
+summary: event/status/elapsed_ms + result
+error: event/status/error_code/detail/elapsed_ms
+```
+
 ## 순서 규칙
 - `partial`은 0회 이상 발생할 수 있다.
 - 정상 종료는 `summary`로 끝난다.

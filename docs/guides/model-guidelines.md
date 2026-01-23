@@ -15,6 +15,11 @@
 - UI 선택은 API payload로 전달한다.
 - `model_overrides`가 있으면 기본값보다 우선한다.
 
+## 우선순위 요약
+```
+UI 선택 → API payload → model_overrides → 기본 모델
+```
+
 ## alias 규칙
 - alias는 shared 레지스트리에서만 관리한다.
 - alias 변경 시 문서와 예시를 갱신한다.
