@@ -1,19 +1,21 @@
-﻿# 문서 개요 (업데이트: 2025-12-26, Cohere 채팅 모델 제외 반영)
+# Docs Overview (Updated: 2026-03-16)
 
-| 구분 | 설명 | 링크 |
+This folder keeps project history, development notes, guides, and prompt source files.
+
+| Section | Description | Link |
 | --- | --- | --- |
-| Changelog | 날짜별 변경 로그 | [changelog/README.md](changelog/README.md) |
-| Dev Log | 개발 일지 | [development/README.md](development/README.md) |
-| Roadmap | 중기 계획 | [development/roadmap-2025.md](development/roadmap-2025.md) |
-| Guides | 규칙/가이드 | [guides/naming-guidelines.md](guides/naming-guidelines.md), [guides/logger-guidelines.md](guides/logger-guidelines.md), [guides/config-guidelines.md](guides/config-guidelines.md), [guides/function-guidelines.md](guides/function-guidelines.md), [guides/streaming-guidelines.md](guides/streaming-guidelines.md), [guides/ui-guidelines.md](guides/ui-guidelines.md), [guides/auth-usage-guidelines.md](guides/auth-usage-guidelines.md), [guides/model-guidelines.md](guides/model-guidelines.md), [guides/error-code-guidelines.md](guides/error-code-guidelines.md), [guides/testing-guidelines.md](guides/testing-guidelines.md) |
-| Prompts | 프롬프트 원본 | [prompt/_README.md](prompt/_README.md) |
+| Changelog | Dated change history | [changelog/README.md](changelog/README.md) |
+| Development | Dated implementation notes | [development/README.md](development/README.md) |
+| Roadmap | Medium-term planning notes | [development/roadmap-2025.md](development/roadmap-2025.md) |
+| Guides | Repo conventions and reference docs | [guides/README.md](guides/README.md) |
+| Prompts | Prompt source files used by the backend | [prompt/README.md](prompt/README.md) |
 
 ## Quick Links
-- 최신 changelog: [2025-12-26](changelog/2025-12-26.md)
-- 최신 dev log: [2025-12-26](development/2025-12-26.md)
-- 가이드 업데이트: 운영성 가이드 추가 및 예시 보강
+- Latest changelog: [2026-03-16](changelog/2026-03-16.md)
+- Latest development note: [2026-03-16](development/2026-03-16.md)
+- Active runtime: local-first chat comparison with `backend/` + React frontend
 
-## 핵심 흐름 요약
-- chat_compare: 여러 모델에 질문을 팬아웃하고 스트리밍으로 답변을 수집한다.
-- prompt_compare: 공통 프롬프트로 답변을 생성하고 교차 평가로 점수를 산출한다.
-- scoring: 점수는 모델이 산출하고, 랭킹은 백엔드에서 평균으로 계산한다.
+## Current Architecture Notes
+- `chat_compare` is the active product flow.
+- `prompt_compare` remains only in historical documentation; it is no longer part of the active runtime.
+- The repository now uses `main.py` as the single public entrypoint, `backend/` as the backend root, and `frontend/` as the React UI.

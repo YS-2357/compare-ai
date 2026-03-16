@@ -1,27 +1,28 @@
-# Development Logs (업데이트: 2025-12-26)
+# Development Logs (Updated: 2026-03-16)
 
-개발 진행 상황을 날짜별로 모아둔 인덱스입니다.
+Index of dated development notes.
 
-| 날짜 | 파일 | 주요 내용 |
+| Date | File | Summary |
 | --- | --- | --- |
-| 2025-12-26 | [2025-12-26.md](2025-12-26.md) | 가이드 리팩터링 및 운영성 문서 추가 |
-| 2025-12-25 | [2025-12-25.md](2025-12-25.md) | 모델 목록 재확인, UI 입력 검증 보강 |
-| 2025-12-24 | [2025-12-24.md](2025-12-24.md) | Streamlit 기본 모델 선택 로그 중복 제거 |
-| 2025-12-22 | [2025-12-22.md](2025-12-22.md) | 모델 오버라이드/DeepSeek 추가, 평가·로그·프롬프트 분기 보강 |
-| 2025-12-21 | [2025-12-21.md](2025-12-21.md) | 프롬프트 평가 루브릭 분기(reference), 평가 UI 표/리스트 개편, Graphviz 시각화, Swagger 최신화 |
-| 2025-12-20 | [2025-12-20.md](2025-12-20.md) | 서비스 리네임(chat_compare/prompt_compare), shared 모델 매핑, 평가 병렬화, 모델 리스트 확장, 네이밍 가이드 추가, Streamlit 평가 UI 개선(width/status 정규화) |
-| 2025-12-18 | [2025-12-18.md](2025-12-18.md) | 프롬프트 평가 스트림/교차 평가 추가, 평가 결과 JSON/시간/상태 노출, UI DataFrame/expander 렌더, 네이밍 가이드 초안 |
-| 2025-12-15 | [2025-12-15.md](2025-12-15.md) | pytest 기반 헬스 체크 테스트 추가, CI 워크플로 도입, README 테스트 안내 |
-| 2025-12-08 | [2025-12-08.md](2025-12-08.md) | Swagger `/docs` 예시/응답 설명 보강, NDJSON 문서화, 제목/description 최신화 |
-| 2025-12-06 | [2025-12-06.md](2025-12-06.md) | 모델 오버라이드/관리자 bypass 반영, Streamlit 모델 선택 UI, 클라이언트 종료 훅 |
-| 2025-12-03 | [2025-12-03.md](2025-12-03.md) | 스트리밍 partial 즉시 표시, 프롬프트 영어화(응답은 한국어), Perplexity 출처 보강 |
-| 2025-12-02 | [2025-12-02.md](2025-12-02.md) | 멀티턴 컨텍스트 개선, 모델별 히스토리/요약 분리, UI 전체 모델 응답 히스토리 전송 |
-| 2025-11-28 | [2025-11-28.md](2025-11-28.md) | Upstash 3회 제한 검증, 관리자 우회 세션 초기화, UI 사용량 표시 버그 남음 |
-| 2025-11-27 | [2025-11-27.md](2025-11-27.md) | Streamlit 상태 기본값 정리, JWKS URL 보강, 레이트리밋 오류 핸들링 개선 |
-| 2025-11-26 | [2025-11-26.md](2025-11-26.md) | BE/FE 분리 준비, 배포 편의 의존성 정리, pypdf 충돌 해결 |
-| 2025-11-25 | [2025-11-25.md](2025-11-25.md) | Streamlit 요약/에러 UX 개선, 공용 히스토리 요약 제거 |
-| 2025-11-22 | [2025-11-22.md](2025-11-22.md) | 멀티턴 준비, 요약/턴 제어 규칙 확정 |
-| 2025-11-21 | [2025-11-21.md](2025-11-21.md) | 챗 UI 개편, 이모지 로거, 최초 멀티턴 논의 |
-| 2025-11-20 | [2025-11-20.md](2025-11-20.md) | 상태 기본값 정리, 멀티턴 설계 논의 |
-| 2025-11-19 | [2025-11-19.md](2025-11-19.md) | 진행 로그 패턴 수립 |
-| 로드맵 | [roadmap-2025.md](roadmap-2025.md) | 연간 계획 |
+| 2026-03-16 | [2026-03-16.md](2026-03-16.md) | Local-first repo restructure, chat-only backend, summary/error fixes, frontend response layout, startup reuse logic |
+| 2025-12-26 | [2025-12-26.md](2025-12-26.md) | Guide refactor and operational documentation additions |
+| 2025-12-25 | [2025-12-25.md](2025-12-25.md) | Model list review and UI validation updates |
+| 2025-12-24 | [2025-12-24.md](2025-12-24.md) | Streamlit default model log cleanup |
+| 2025-12-22 | [2025-12-22.md](2025-12-22.md) | Model override and DeepSeek updates, evaluation/log/prompt branching |
+| 2025-12-21 | [2025-12-21.md](2025-12-21.md) | Prompt-eval rubric branching, evaluation UI revision, Graphviz, Swagger updates |
+| 2025-12-20 | [2025-12-20.md](2025-12-20.md) | Service rename, shared model mapping, evaluation parallelism, model expansion |
+| 2025-12-18 | [2025-12-18.md](2025-12-18.md) | Prompt-eval stream, cross-evaluation, timing/status JSON, UI rendering |
+| 2025-12-15 | [2025-12-15.md](2025-12-15.md) | pytest health-check tests, CI workflow, README test guidance |
+| 2025-12-08 | [2025-12-08.md](2025-12-08.md) | Swagger `/docs` examples, NDJSON docs, title/description updates |
+| 2025-12-06 | [2025-12-06.md](2025-12-06.md) | Model override and admin bypass updates, Streamlit model selection |
+| 2025-12-03 | [2025-12-03.md](2025-12-03.md) | Immediate partial rendering, English prompts, Perplexity source updates |
+| 2025-12-02 | [2025-12-02.md](2025-12-02.md) | Multi-turn context improvements and history transfer |
+| 2025-11-28 | [2025-11-28.md](2025-11-28.md) | Upstash limit validation and admin bypass session reset |
+| 2025-11-27 | [2025-11-27.md](2025-11-27.md) | Streamlit state defaults, JWKS URL updates, rate-limit handling |
+| 2025-11-26 | [2025-11-26.md](2025-11-26.md) | Backend/frontend split preparation and dependency cleanup |
+| 2025-11-25 | [2025-11-25.md](2025-11-25.md) | Streamlit summary/error UX updates |
+| 2025-11-22 | [2025-11-22.md](2025-11-22.md) | Multi-turn preparation and turn-control rules |
+| 2025-11-21 | [2025-11-21.md](2025-11-21.md) | Chat UI revision, emoji logger, first multi-turn discussion |
+| 2025-11-20 | [2025-11-20.md](2025-11-20.md) | State defaults and multi-turn design notes |
+| 2025-11-19 | [2025-11-19.md](2025-11-19.md) | Development log pattern setup |
+| Roadmap | [roadmap-2025.md](roadmap-2025.md) | Annual plan |

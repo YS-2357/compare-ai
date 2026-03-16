@@ -20,11 +20,9 @@ python-jose[cryptography]==3.3.0
 httpx==0.28.1
 ipython==8.28.0  # required by langchain-teddynote
 
-# Web API (Streamlit for local UI)
+# Web API
 fastapi==0.122.0
 uvicorn[standard]==0.38.0
-requests==2.32.5
-streamlit==1.51.0  # local UI; exclude from production if not needed
 email-validator==2.1.0.post1  # for Pydantic EmailStr
 
 # Known Windows wheel requirement (ASCII comments only)
@@ -34,7 +32,3 @@ PyYAML==6.0.1
 tokenizers==0.20.3
 # langchain-upstage 0.7.5 requires pypdf<5.0.0
 pypdf==4.3.1
-
-# Testing
-pytest==8.3.3
-pytest-asyncio==0.24.0
